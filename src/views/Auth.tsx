@@ -60,12 +60,12 @@ export default function Auth() {
 
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-10">
-          <div
-            className="w-[72px] h-[72px] rounded-full flex items-center justify-center mb-5"
-            style={{ background: 'var(--gradient-brand)', boxShadow: '0 8px 28px rgba(232,102,138,0.25)' }}
-          >
-            <span className="text-white text-3xl font-display font-bold">T</span>
-          </div>
+          <img
+            src="/logo.png"
+            alt="Titus 2:4 Logo"
+            className="w-[100px] h-[100px] object-contain mb-5"
+            style={{ filter: 'drop-shadow(0 8px 28px rgba(232,102,138,0.25))' }}
+          />
           <h1 className="font-display text-3xl font-bold tracking-tight mb-2" style={{ color: 'var(--color-text)' }}>
             Titus 2:4
           </h1>

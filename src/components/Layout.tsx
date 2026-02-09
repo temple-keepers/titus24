@@ -2,6 +2,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, Users, Heart, User, Bell, Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import ToastContainer from '@/components/ToastContainer';
+import InstallPrompt from '@/components/InstallPrompt';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -24,12 +25,11 @@ export default function Layout() {
       >
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-16">
           <NavLink to="/" className="flex items-center gap-3 no-underline">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{ background: 'var(--gradient-brand)' }}
-            >
-              <span className="text-white text-sm font-display font-bold">T</span>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Titus 2:4 Logo"
+              className="w-9 h-9 object-contain"
+            />
             <span
               className="font-display text-lg font-semibold tracking-tight"
               style={{ color: 'var(--color-text)' }}
@@ -115,6 +115,9 @@ export default function Layout() {
 
       {/* ─── Toasts ──────────────────────────────────────── */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* ─── Install Prompt ──────────────────────────────── */}
+      <InstallPrompt />
     </div>
   );
 }

@@ -263,6 +263,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (user) fetchAllData();
   }, [user, fetchAllData]);
 
+  // ─── Apply Theme ──────────────────────────────────────────────
+  useEffect(() => {
+    if (profile?.theme) {
+      document.documentElement.setAttribute('data-theme', profile.theme);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        meta.setAttribute('content', profile.theme === 'dark' ? '#1A1215' : '#FFFBF9');
+      }
+    }
+  }, [profile?.theme]);
+
   // ─── Realtime ─────────────────────────────────────────────
   useEffect(() => {
     if (!user) {

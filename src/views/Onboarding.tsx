@@ -56,6 +56,12 @@ export default function Onboarding() {
 
       <div className="w-full max-w-sm space-y-7">
         <div className="text-center">
+          <img
+            src="/logo.png"
+            alt="Titus 2:4 Logo"
+            className="w-16 h-16 object-contain mx-auto mb-4"
+            style={{ filter: 'drop-shadow(0 4px 12px rgba(232,102,138,0.2))' }}
+          />
           <h1 className="font-display text-3xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
             Welcome, {profile?.first_name || 'Beautiful'} 💐
           </h1>
