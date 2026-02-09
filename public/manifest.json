@@ -1,0 +1,22 @@
+{
+  "name": "Titus 2:4 Company",
+  "short_name": "Titus 2:4",
+  "description": "A faith-based community for women pursuing God's design for marriage and womanhood",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFBF9",
+  "theme_color": "#FFFBF9",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
