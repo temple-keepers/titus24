@@ -1,31 +1,46 @@
 import { NavLink } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import Avatar from '@/components/Avatar';
+import { timeAgo } from '@/lib/utils';
+import { getTodaysDevotional } from '@/lib/devotionals';
 import {
   Users, Heart, Calendar, BookOpen, Camera, Search,
-  MessageCircle, Library, ChevronRight,
+  MessageCircle, Library, Pin, Megaphone, Sparkles,
+  PartyPopper, HelpCircle, Trophy, HeartHandshake,
+  ChevronRight,
 } from 'lucide-react';
 
 const tiles = [
-  { path: '/community', icon: Users, label: 'Community', desc: 'Share & encourage each other', accent: 'var(--color-brand)' },
-  { path: '/prayer', icon: Heart, label: 'Prayer Wall', desc: 'Lift up your sisters in prayer', accent: 'var(--color-brand)' },
+  { path: '/check-in', icon: Heart, label: 'Check-In', desc: 'Daily heart check', accent: 'var(--color-brand)' },
+  { path: '/devotional', icon: Sparkles, label: 'Devotional', desc: 'Read today\'s word', accent: 'var(--color-brand)' },
+  { path: '/community', icon: Users, label: 'Community', desc: 'Share & encourage', accent: 'var(--color-brand)' },
+  { path: '/prayer', icon: Heart, label: 'Prayer Wall', desc: 'Lift up your sisters', accent: 'var(--color-brand)' },
+  { path: '/prayer-partners', icon: HeartHandshake, label: 'Prayer Partner', desc: 'Weekly prayer pair', accent: 'var(--color-brand)' },
+  { path: '/testimonies', icon: PartyPopper, label: 'Testimonies', desc: 'Celebrate God\'s work', accent: 'var(--color-gold)' },
+  { path: '/ask-elders', icon: HelpCircle, label: 'Ask Elders', desc: 'Anonymous Q&A', accent: 'var(--color-sage)' },
+  { path: '/leaderboard', icon: Trophy, label: 'Leaderboard', desc: 'Points & streaks', accent: 'var(--color-gold)' },
   { path: '/events', icon: Calendar, label: 'Events', desc: 'Upcoming gatherings', accent: 'var(--color-sage)' },
-  { path: '/study', icon: BookOpen, label: 'Bible Study', desc: 'Grow in the Word together', accent: 'var(--color-sage)' },
-  { path: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Chat with your sisters', accent: 'var(--color-brand)' },
-  { path: '/gallery', icon: Camera, label: 'Photo Gallery', desc: 'Shared memories', accent: 'var(--color-gold)' },
-  { path: '/resources', icon: Library, label: 'Resources', desc: 'Teachings & inspiration', accent: 'var(--color-sage)' },
-  { path: '/directory', icon: Users, label: 'Meet the Sisters', desc: 'Browse the community', accent: 'var(--color-gold)' },
-  { path: '/search', icon: Search, label: 'Search', desc: 'Find anything quickly', accent: 'var(--color-text-muted)' },
+  { path: '/study', icon: BookOpen, label: 'Bible Study', desc: 'Grow in the Word', accent: 'var(--color-sage)' },
+  { path: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Chat with sisters', accent: 'var(--color-brand)' },
+  { path: '/gallery', icon: Camera, label: 'Gallery', desc: 'Shared memories', accent: 'var(--color-gold)' },
+  { path: '/resources', icon: Library, label: 'Resources', desc: 'Teachings & links', accent: 'var(--color-sage)' },
+  { path: '/directory', icon: Users, label: 'Directory', desc: 'Meet the sisters', accent: 'var(--color-gold)' },
+  { path: '/search', icon: Search, label: 'Search', desc: 'Find anything', accent: 'var(--color-text-muted)' },
 ];
 
 export default function Home() {
-  const { profile, posts, events, prayerRequests } = useApp();
+  const { profile, profiles, posts, events, prayerRequests, dailyDevotionals } = useApp();
 
-  const recentPostCount = posts.slice(0, 5).length;
+  const today = new Date().toISOString().split('T')[0];
+  const todaysDevotional = dailyDevotionals.find(d => d.date === today) || getTodaysDevotional();
+
+  const recentPostCount = posts.length;
   const upcomingEvents = events.filter((e) => new Date(e.date) >= new Date()).length;
   const activePrayers = prayerRequests.filter((p) => !p.is_answered).length;
+  const announcements = posts.filter((p) => p.is_pinned);
 
   return (
-    <div className="space-y-8 stagger">
+    <div className="space-y-7 stagger">
       {/* Welcome */}
       <div className="text-center pt-2">
         <h1 className="font-display text-3xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>
@@ -35,6 +50,79 @@ export default function Home() {
           Welcome back, beautiful. What would you like to do?
         </p>
       </div>
+
+      {/* Announcements */}
+      {announcements.length > 0 && (
+        <div className="space-y-3">
+          {announcements.map((post) => {
+            const author = profiles.find((p) => p.id === post.author_id);
+            return (
+              <div
+                key={post.id}
+                className="card card-glow"
+                style={{ borderColor: 'rgba(232,102,138,0.25)', background: 'var(--color-brand-soft)' }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Megaphone size={14} style={{ color: 'var(--color-brand)' }} />
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--color-brand)' }}>
+                    Announcement
+                  </span>
+                  <span className="text-xs ml-auto" style={{ color: 'var(--color-text-faint)' }}>
+                    {timeAgo(post.created_at)}
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--color-text)' }}>
+                  {post.content}
+                </p>
+                {author && (
+                  <div className="flex items-center gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+                    <Avatar src={author.photo_url} name={author.first_name} size="sm" />
+                    <span className="text-xs font-semibold" style={{ color: 'var(--color-text-muted)' }}>
+                      {author.first_name}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Today's Devotional */}
+      <NavLink
+        to="/devotional"
+        className="card no-underline block"
+        style={{
+          background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-brand-soft) 100%)',
+          borderColor: 'rgba(232,102,138,0.2)',
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} style={{ color: 'var(--color-brand)' }} />
+            <span className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>
+              Today's Devotional
+            </span>
+          </div>
+          <ChevronRight size={18} style={{ color: 'var(--color-text-muted)' }} />
+        </div>
+        <h3 className="font-display text-lg font-bold mb-2" style={{ color: 'var(--color-brand)' }}>
+          {todaysDevotional.theme}
+        </h3>
+        {todaysDevotional.scripture_ref && (
+          <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+            {todaysDevotional.scripture_ref}
+          </p>
+        )}
+        {todaysDevotional.scripture_text && (
+          <p className="text-sm italic line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+            "{todaysDevotional.scripture_text}"
+          </p>
+        )}
+        <div className="mt-3 inline-flex items-center gap-1 text-xs font-bold" style={{ color: 'var(--color-brand)' }}>
+          Read more <ChevronRight size={14} />
+        </div>
+      </NavLink>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-3">
@@ -54,25 +142,63 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Navigation Tiles — large, clear, easy to tap */}
-      <div className="space-y-3">
-        {tiles.map(({ path, icon: Icon, label, desc, accent }) => (
-          <NavLink key={path} to={path} className="nav-tile">
+      {/* Activity Feed */}
+      {(posts.length > 0 || prayerRequests.length > 0) && (
+        <div>
+          <h2 className="font-display text-lg font-bold mb-3" style={{ color: 'var(--color-text)' }}>
+            Recent Activity
+          </h2>
+          <div className="space-y-3">
+            {[...posts, ...prayerRequests]
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(0, 4)
+              .map((item) => {
+                const author = profiles.find((p) => p.id === item.author_id);
+                const isPrayer = 'is_answered' in item;
+
+                return (
+                  <div key={item.id} className="card p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>
+                            {author?.first_name || 'Anonymous'}
+                          </span>
+                          {isPrayer ? (
+                            <span className="badge badge-pink text-[9px]">Prayer</span>
+                          ) : (
+                            <span className="badge badge-gold text-[9px]">Post</span>
+                          )}
+                        </div>
+                        <p className="text-xs line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+                          {item.content}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Tiles — 3-column grid */}
+      <div className="grid grid-cols-3 gap-3">
+        {tiles.map(({ path, icon: Icon, label, accent }) => (
+          <NavLink
+            key={path}
+            to={path}
+            className="card flex flex-col items-center text-center py-4 px-2 no-underline transition-all hover:border-[var(--color-brand)] hover:shadow-soft-lg active:scale-[0.97]"
+          >
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: `${accent}12` }}
+              className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
+              style={{ background: `${accent}15` }}
             >
-              <Icon size={22} style={{ color: accent }} />
+              <Icon size={18} style={{ color: accent }} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-[15px]" style={{ color: 'var(--color-text)' }}>
-                {label}
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                {desc}
-              </div>
+            <div className="font-bold text-xs leading-tight" style={{ color: 'var(--color-text)' }}>
+              {label}
             </div>
-            <ChevronRight size={18} style={{ color: 'var(--color-text-faint)' }} />
           </NavLink>
         ))}
       </div>

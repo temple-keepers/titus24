@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from '@/context/AppContext';
 import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import Auth from '@/views/Auth';
 import Onboarding from '@/views/Onboarding';
 import Home from '@/views/Home';
@@ -17,6 +18,12 @@ import Profile from '@/views/Profile';
 import Notifications from '@/views/Notifications';
 import SearchView from '@/views/SearchView';
 import AdminDashboard from '@/views/AdminDashboard';
+import DailyDevotional from '@/views/DailyDevotional';
+import CheckIn from '@/views/CheckIn';
+import Testimonies from '@/views/Testimonies';
+import AskElders from '@/views/AskElders';
+import PrayerPartners from '@/views/PrayerPartners';
+import Leaderboard from '@/views/Leaderboard';
 
 function AppRoutes() {
   const { user, profile, authLoading, loading } = useApp();
@@ -48,6 +55,12 @@ function AppRoutes() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/search" element={<SearchView />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/check-in" element={<CheckIn />} />
+        <Route path="/devotional" element={<DailyDevotional />} />
+        <Route path="/testimonies" element={<Testimonies />} />
+        <Route path="/ask-elders" element={<AskElders />} />
+        <Route path="/prayer-partners" element={<PrayerPartners />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
@@ -56,10 +69,12 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <HashRouter>
-      <AppProvider>
-        <AppRoutes />
-      </AppProvider>
-    </HashRouter>
+    <ErrorBoundary>
+      <HashRouter>
+        <AppProvider>
+          <AppRoutes />
+        </AppProvider>
+      </HashRouter>
+    </ErrorBoundary>
   );
 }

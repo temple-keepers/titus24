@@ -369,3 +369,12 @@ select.input {
 .nav-tile:active {
   transform: scale(0.98);
 }
+
+/* Pulse animation */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.15); }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}

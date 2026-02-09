@@ -14,6 +14,7 @@ import type {
   Notification, NotificationType,
   Badge, UserBadge,
   FollowUpNote, FollowUpStatus,
+  DailyDevotional,
   Toast, ToastType,
 } from '@/types';
 import type { Session, User } from '@supabase/supabase-js';
@@ -45,6 +46,7 @@ interface AppState {
   galleryPhotos: GalleryPhoto[];
   messages: Message[];
   resources: Resource[];
+  dailyDevotionals: DailyDevotional[];
   notifications: Notification[];
   badges: Badge[];
   userBadges: UserBadge[];
@@ -105,6 +107,11 @@ interface AppState {
   addResource: (data: Omit<Resource, 'id' | 'created_by' | 'created_at'>) => Promise<void>;
   deleteResource: (id: string) => Promise<void>;
 
+  // Daily Devotionals
+  addDevotional: (data: Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateDevotional: (id: string, data: Partial<Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>>) => Promise<void>;
+  deleteDevotional: (id: string) => Promise<void>;
+
   // Notifications
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
@@ -152,6 +159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
+  const [dailyDevotionals, setDailyDevotionals] = useState<DailyDevotional[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
@@ -187,7 +195,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         eventsRes, rsvpsRes, remindersRes,
         studiesRes, studyDaysRes, progressRes, enrollmentsRes,
         albumsRes, photosRes,
-        messagesRes, resourcesRes, notificationsRes,
+        messagesRes, resourcesRes, devotionalsRes, notificationsRes,
         badgesRes, userBadgesRes, notesRes,
       ] = await Promise.all([
         supabase.from('profiles').select('*'),
@@ -207,6 +215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         supabase.from('gallery_photos').select('*').order('created_at', { ascending: false }),
         supabase.from('messages').select('*').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`).order('created_at', { ascending: true }),
         supabase.from('resources').select('*').order('created_at', { ascending: false }),
+        supabase.from('daily_devotionals').select('*').order('date', { ascending: false }),
         supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
         supabase.from('badges').select('*'),
         supabase.from('user_badges').select('*').eq('user_id', user.id),
@@ -230,6 +239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (photosRes.data) setGalleryPhotos(photosRes.data);
       if (messagesRes.data) setMessages(messagesRes.data);
       if (resourcesRes.data) setResources(resourcesRes.data);
+      if (devotionalsRes.data) setDailyDevotionals(devotionalsRes.data);
       if (notificationsRes.data) setNotifications(notificationsRes.data);
       if (badgesRes.data) setBadges(badgesRes.data);
       if (userBadgesRes.data) setUserBadges(userBadgesRes.data);
@@ -237,7 +247,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Set current user profile
       const me = profilesRes.data?.find((p: Profile) => p.id === user.id);
-      if (me) setProfile(me);
+      if (me) {
+        setProfile(me);
+        console.log('👤 Current user role:', me.role, '(needs "leader" for devotional admin)');
+      }
     } catch (err) {
       console.error('Data fetch error:', err);
       addToast('error', 'Failed to load data. Please refresh.');
@@ -252,7 +265,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Realtime ─────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      // Clean up any existing channel if user logs out
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      return;
+    }
 
     const channel = supabase
       .channel('app-realtime')
@@ -296,7 +316,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     channelRef.current = channel;
 
     return () => {
-      supabase.removeChannel(channel);
+      // Proper cleanup
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [user]);
 
@@ -678,6 +702,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setResources((prev) => prev.filter((r) => r.id !== id));
   }, []);
 
+  // ─── Daily Devotional Actions ─────────────────────────────────────
+  const addDevotional = useCallback(async (data: Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
+    if (!user) return;
+    console.log('🔍 Attempting to insert devotional:', { ...data, created_by: user.id });
+    const { data: newDev, error } = await supabase.from('daily_devotionals').insert({ ...data, created_by: user.id }).select().single();
+    if (error) {
+      console.error('❌ Devotional insert error:', error);
+      throw error;
+    }
+    if (newDev) setDailyDevotionals((prev) => [newDev, ...prev].sort((a, b) => b.date.localeCompare(a.date)));
+    addToast('success', 'Devotional created');
+  }, [user, addToast]);
+
+  const updateDevotional = useCallback(async (id: string, data: Partial<Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>>) => {
+    const { data: updated, error } = await supabase.from('daily_devotionals').update(data).eq('id', id).select().single();
+    if (error) throw error;
+    if (updated) setDailyDevotionals((prev) => prev.map((d) => d.id === id ? updated : d).sort((a, b) => b.date.localeCompare(a.date)));
+    addToast('success', 'Devotional updated');
+  }, [addToast]);
+
+  const deleteDevotional = useCallback(async (id: string) => {
+    await supabase.from('daily_devotionals').delete().eq('id', id);
+    setDailyDevotionals((prev) => prev.filter((d) => d.id !== id));
+    addToast('success', 'Devotional deleted');
+  }, [addToast]);
+
   // ─── Notification Actions ─────────────────────────────────
   const markNotificationRead = useCallback(async (id: string) => {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
@@ -715,7 +765,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     events, rsvps, eventReminders,
     bibleStudies, studyDays, studyProgress, studyEnrollments,
     galleryAlbums, galleryPhotos,
-    messages, resources, notifications,
+    messages, resources, dailyDevotionals, notifications,
     badges, userBadges, followUpNotes,
     toasts, addToast, removeToast,
     signIn, signUp, signOut,
@@ -727,6 +777,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addAlbum, uploadPhoto, deletePhoto,
     sendMessage, getConversations,
     addResource, deleteResource,
+    addDevotional, updateDevotional, deleteDevotional,
     markNotificationRead, markAllNotificationsRead, deleteNotification, unreadNotificationCount,
     addFollowUpNote,
     refetchAll: fetchAllData,

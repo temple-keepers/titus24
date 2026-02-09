@@ -16,6 +16,9 @@ export interface Profile {
   digest_time: string | null;
   digest_timezone: string | null;
   last_attended: string | null;
+  checkin_streak?: number;
+  total_points?: number;
+  last_checkin_date?: string | null;
   created_at: string;
 }
 
@@ -276,6 +279,106 @@ export interface FollowUpNote {
   status: FollowUpStatus;
   created_at: string;
   user?: Profile;
+}
+
+// ─── Daily Devotional & Check-In ──────────────────────────────
+export type MoodType = 'joyful' | 'peaceful' | 'grateful' | 'hopeful' | 'anxious' | 'struggling' | 'lonely' | 'excited';
+
+export interface DailyCheckIn {
+  id: string;
+  user_id: string;
+  mood: MoodType;
+  gratitude: string | null;
+  date: string;
+  created_at: string;
+}
+
+export interface DailyDevotional {
+  id: string;
+  date: string;
+  theme: string;
+  scripture_ref: string | null;
+  scripture_text: string | null;
+  reflection: string | null;
+  affirmation: string | null;
+  prayer: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Prayer Partners ─────────────────────────────────────────
+export interface PrayerPartnership {
+  id: string;
+  user_a_id: string;
+  user_b_id: string;
+  period_start: string;
+  period_end: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ─── Testimonies ─────────────────────────────────────────────
+export type TestimonyCategory = 'Answered Prayer' | 'Engagement' | 'Marriage' | 'Breakthrough' | 'Healing' | 'Provision' | 'Growth' | 'Other';
+
+export interface Testimony {
+  id: string;
+  author_id: string;
+  content: string;
+  category: TestimonyCategory;
+  is_anonymous: boolean;
+  celebration_count: number;
+  created_at: string;
+}
+
+export interface TestimonyCelebration {
+  id: string;
+  testimony_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+// ─── Ask the Elders ──────────────────────────────────────────
+export interface ElderQuestion {
+  id: string;
+  author_id: string;
+  question: string;
+  category: string;
+  is_answered: boolean;
+  answer: string | null;
+  answered_by: string | null;
+  answered_at: string | null;
+  created_at: string;
+}
+
+// ─── Points & Leaderboard ────────────────────────────────────
+export type PointAction =
+  | 'daily_checkin'
+  | 'devotional_read'
+  | 'post_created'
+  | 'comment_added'
+  | 'prayer_submitted'
+  | 'prayer_response'
+  | 'testimony_shared'
+  | 'study_day_completed'
+  | 'event_attended'
+  | 'streak_bonus';
+
+export interface PointEntry {
+  id: string;
+  user_id: string;
+  action: PointAction;
+  points: number;
+  description: string;
+  created_at: string;
+}
+
+export interface LeaderboardEntry {
+  user_id: string;
+  total_points: number;
+  rank: number;
+  title: string;
+  profile?: Profile;
 }
 
 // ─── Toast ────────────────────────────────────────────────────
