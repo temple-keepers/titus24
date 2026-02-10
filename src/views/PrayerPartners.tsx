@@ -37,7 +37,7 @@ export default function PrayerPartners() {
 
   // Leader: manually trigger a new round of partnerships
   const shufflePartners = async () => {
-    if (profile?.role !== 'leader') return;
+    if (profile?.role !== 'admin') return;
 
     try {
       // Check if we have enough profiles
@@ -107,7 +107,7 @@ export default function PrayerPartners() {
             Paired to pray for each other this week
           </p>
         </div>
-        {profile?.role === 'leader' && (
+        {profile?.role === 'admin' && (
           <button className="btn btn-secondary btn-sm" onClick={shufflePartners}>
             <RefreshCw size={16} /> Shuffle
           </button>
@@ -165,7 +165,7 @@ export default function PrayerPartners() {
           <p className="text-sm max-w-xs mx-auto" style={{ color: 'var(--color-text-muted)' }}>
             Prayer partners are assigned weekly by your leaders. Check back soon!
           </p>
-          {profile?.role === 'leader' && (
+          {profile?.role === 'admin' && (
             <button className="btn btn-primary mt-5" onClick={shufflePartners}>
               <RefreshCw size={18} /> Create First Partnerships
             </button>

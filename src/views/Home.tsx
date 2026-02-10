@@ -39,6 +39,27 @@ export default function Home() {
   const activePrayers = prayerRequests.filter((p) => !p.is_answered).length;
   const announcements = posts.filter((p) => p.is_pinned);
 
+  // Celebrations: upcoming birthdays & anniversaries within 7 days
+  const celebrations = (() => {
+    const now = new Date();
+    const items: Array<{ name: string; type: 'birthday' | 'anniversary'; daysAway: number }> = [];
+    profiles.forEach(p => {
+      if (!p.birthday_visible) return;
+      [
+        { date: p.birthday, type: 'birthday' as const },
+        { date: p.wedding_anniversary, type: 'anniversary' as const },
+      ].forEach(({ date, type }) => {
+        if (!date) return;
+        const d = new Date(date);
+        const thisYear = new Date(now.getFullYear(), d.getMonth(), d.getDate());
+        if (thisYear < now) thisYear.setFullYear(thisYear.getFullYear() + 1);
+        const diff = Math.ceil((thisYear.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff <= 7) items.push({ name: p.first_name, type, daysAway: diff });
+      });
+    });
+    return items.sort((a, b) => a.daysAway - b.daysAway);
+  })();
+
   return (
     <div className="space-y-7 stagger">
       {/* Welcome */}
@@ -141,6 +162,34 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* Celebrations */}
+      {celebrations.length > 0 && (
+        <div
+          className="card"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-gold-soft, rgba(245,176,65,0.08)) 100%)',
+            borderColor: 'rgba(245,176,65,0.2)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <PartyPopper size={18} style={{ color: 'var(--color-gold)' }} />
+            <span className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>Celebrations This Week</span>
+          </div>
+          <div className="space-y-2">
+            {celebrations.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                <span>{c.type === 'birthday' ? '🎂' : '💍'}</span>
+                <span>
+                  <strong style={{ color: 'var(--color-text)' }}>{c.name}</strong>
+                  {c.type === 'birthday' ? "'s birthday" : "'s anniversary"}{' '}
+                  {c.daysAway === 0 ? 'is today!' : c.daysAway === 1 ? 'is tomorrow!' : `in ${c.daysAway} days`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Activity Feed */}
       {(posts.length > 0 || prayerRequests.length > 0) && (

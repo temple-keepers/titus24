@@ -27,7 +27,7 @@ export default function Events() {
   const [whatToBring, setWhatToBring] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const isLeader = profile?.role === 'leader';
+  const isAdmin = profile?.role === 'admin';
   const now = new Date();
 
   const upcoming = events.filter((e) => new Date(e.date) >= now);
@@ -54,7 +54,7 @@ export default function Events() {
         <h1 className="font-display text-xl font-bold" style={{ color: 'var(--color-text)' }}>
           Events
         </h1>
-        {isLeader && (
+        {isAdmin && (
           <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
             <Plus size={14} /> Create
           </button>

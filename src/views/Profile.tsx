@@ -14,6 +14,7 @@ export default function Profile() {
     prayer_focus: profile?.prayer_focus ?? '',
     birthday: profile?.birthday ?? '',
     birthday_visible: profile?.birthday_visible ?? false,
+    wedding_anniversary: profile?.wedding_anniversary ?? '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -30,6 +31,7 @@ export default function Profile() {
         prayer_focus: form.prayer_focus || null,
         birthday: form.birthday || null,
         birthday_visible: form.birthday_visible,
+        wedding_anniversary: form.wedding_anniversary || null,
       });
       setEditing(false);
     } catch {
@@ -158,6 +160,10 @@ export default function Profile() {
           <div>
             <label className="label">Birthday</label>
             <input type="date" className="input" value={form.birthday} onChange={(e) => setForm({ ...form, birthday: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Wedding Anniversary</label>
+            <input type="date" className="input" value={form.wedding_anniversary} onChange={(e) => setForm({ ...form, wedding_anniversary: e.target.value })} />
           </div>
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={form.birthday_visible} onChange={(e) => setForm({ ...form, birthday_visible: e.target.checked })} className="w-4 h-4 rounded accent-brand-500" />

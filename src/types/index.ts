@@ -4,7 +4,8 @@ export interface Profile {
   first_name: string;
   last_name: string;
   email: string;
-  role: 'member' | 'leader';
+  role: 'admin' | 'mentor' | 'lady';
+  wedding_anniversary: string | null;
   photo_url: string | null;
   area: string | null;
   about: string | null;
@@ -20,6 +21,11 @@ export interface Profile {
   total_points?: number;
   last_checkin_date?: string | null;
   created_at: string;
+  activity?: {
+    checkins: number;
+    posts: number;
+    prayers: number;
+  };
 }
 
 // ─── Community ────────────────────────────────────────────────
@@ -379,6 +385,29 @@ export interface LeaderboardEntry {
   rank: number;
   title: string;
   profile?: Profile;
+}
+
+// ─── Mentoring ──────────────────────────────────────────────
+export interface MentorAssignment {
+  id: string;
+  mentor_id: string;
+  mentee_id: string;
+  status: 'active' | 'pending' | 'inactive';
+  assigned_at: string;
+  notes: string | null;
+  mentor?: Profile;
+  mentee?: Profile;
+}
+
+export interface MentorRequest {
+  id: string;
+  mentee_id: string;
+  mentor_id: string | null;
+  message: string | null;
+  status: 'pending' | 'approved' | 'declined';
+  created_at: string;
+  mentee?: Profile;
+  mentor?: Profile;
 }
 
 // ─── Toast ────────────────────────────────────────────────────

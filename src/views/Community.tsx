@@ -3,7 +3,7 @@ import { useApp } from '@/context/AppContext';
 import Avatar from '@/components/Avatar';
 import EmptyState from '@/components/EmptyState';
 import { timeAgo, buildCommentTree, cn } from '@/lib/utils';
-import { ImagePlus, Send, Pin, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ImagePlus, Send, Pin, MessageCircle, ChevronDown, ChevronUp, PartyPopper } from 'lucide-react';
 import type { ReactionType, Post as PostType } from '@/types';
 
 const reactionEmojis: Record<ReactionType, string> = {
@@ -29,6 +29,26 @@ export default function Community() {
     const rest = posts.filter((p) => !p.is_pinned);
     return [...pinned, ...rest];
   }, [posts]);
+
+  // Today's celebrations
+  const todayCelebrations = useMemo(() => {
+    const now = new Date();
+    const items: Array<{ name: string; type: 'birthday' | 'anniversary'; photoUrl: string | null }> = [];
+    profiles.forEach(p => {
+      if (!p.birthday_visible) return;
+      [
+        { date: p.birthday, type: 'birthday' as const },
+        { date: p.wedding_anniversary, type: 'anniversary' as const },
+      ].forEach(({ date, type }) => {
+        if (!date) return;
+        const d = new Date(date);
+        if (d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) {
+          items.push({ name: p.first_name, type, photoUrl: p.photo_url });
+        }
+      });
+    });
+    return items;
+  }, [profiles]);
 
   const handlePost = async () => {
     if (!newContent.trim() && !imageFile) return;
@@ -99,6 +119,35 @@ export default function Community() {
         </div>
       </div>
 
+      {/* Celebration Banner */}
+      {todayCelebrations.length > 0 && (
+        <div
+          className="card card-glow"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-gold-soft, rgba(245,176,65,0.08)) 100%)',
+            borderColor: 'rgba(245,176,65,0.3)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <PartyPopper size={18} style={{ color: 'var(--color-gold)' }} />
+            <span className="font-bold text-sm" style={{ color: 'var(--color-gold)' }}>
+              Celebrate Today!
+            </span>
+          </div>
+          <div className="space-y-2">
+            {todayCelebrations.map((c, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <Avatar src={c.photoUrl} name={c.name} size="sm" />
+                <span className="text-sm" style={{ color: 'var(--color-text)' }}>
+                  {c.type === 'birthday' ? '🎂' : '💍'}{' '}
+                  Happy {c.type === 'birthday' ? 'Birthday' : 'Anniversary'}, <strong>{c.name}</strong>!
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Posts */}
       {sortedPosts.length === 0 ? (
         <EmptyState message="No posts yet. Be the first to share!" />
@@ -136,7 +185,7 @@ function PostCard({ post }: { post: PostType }) {
   };
 
   const myReactions = postReactions.filter((r) => r.user_id === user?.id).map((r) => r.type);
-  const isLeader = profile?.role === 'leader';
+  const isAdmin = profile?.role === 'admin';
 
   const handleComment = async () => {
     if (!commentText.trim()) return;
@@ -170,7 +219,7 @@ function PostCard({ post }: { post: PostType }) {
             {author?.area && ` · ${author.area}`}
           </div>
         </div>
-        {isLeader && (
+        {isAdmin && (
           <div className="flex gap-1">
             <button
               className="btn btn-ghost btn-sm"

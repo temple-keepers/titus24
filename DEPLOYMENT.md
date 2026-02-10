@@ -100,9 +100,29 @@ supabase/make-devotional-fields-optional.sql
 
 -- 5. Migrate new features (if adding testimonies, prayer partners, etc.)
 supabase/migrate-new-features.sql
+
+-- 6. Remove duplicate policies (performance)
+supabase/remove-duplicate-policies.sql
+
+-- 7. Optimize RLS performance
+supabase/optimize-rls-performance.sql
+
+-- 8. Fix security warnings (IMPORTANT - Run this last!)
+supabase/fix-security-warnings.sql
 ```
 
-### 2. Create Initial Admin Account
+### 2. Enable Password Protection
+
+**IMPORTANT**: Enable leaked password protection in Supabase Auth:
+
+1. Go to Supabase Dashboard → **Authentication** → **Policies**
+2. Scroll to **Password Requirements**
+3. Enable **"Check against list of leaked passwords (HaveIBeenPwned)"**
+4. Click **Save**
+
+This prevents users from using compromised passwords.
+
+### 3. Create Initial Admin Account
 
 1. Sign up through the app
 2. Go to Supabase Dashboard → Authentication → Users
@@ -111,7 +131,7 @@ supabase/migrate-new-features.sql
 5. Update your profile:
    - Set `role` to `'leader'`
 
-### 3. Verify RLS Policies
+### 4. Verify RLS Policies
 
 Run this query to check all RLS policies:
 ```sql

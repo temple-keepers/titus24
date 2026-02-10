@@ -1,18 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
+import { supabase } from '@/lib/supabase';
 import Avatar from '@/components/Avatar';
 import Modal from '@/components/Modal';
 import { timeAgo, cn } from '@/lib/utils';
 import {
   FileText, Heart, Users, Calendar, ChevronRight,
   Pin, Trash2, ArrowLeft, HelpCircle, BookOpen,
-  Library, Megaphone, Plus, X,
+  Library, Megaphone, Plus, X, HeartHandshake,
 } from 'lucide-react';
-import type { FollowUpStatus, ResourceCategory, ResourceType } from '@/types';
+import type { FollowUpStatus, ResourceCategory, ResourceType, MentorAssignment, MentorRequest } from '@/types';
 
 type AdminSection =
   | 'home' | 'posts' | 'prayers' | 'attendance' | 'followup'
-  | 'bible-study' | 'resources' | 'events' | 'announcements' | 'devotionals';
+  | 'bible-study' | 'resources' | 'events' | 'announcements' | 'devotionals' | 'members' | 'mentoring';
 
 const tiles = [
   { key: 'announcements' as const, icon: Megaphone, label: 'Announcements', desc: 'Post an announcement that appears on the home page for everyone.', color: 'var(--color-brand)' },
@@ -24,6 +25,8 @@ const tiles = [
   { key: 'resources' as const, icon: Library, label: 'Add Resource', desc: 'Share a teaching article or video link.', color: 'var(--color-sage)' },
   { key: 'attendance' as const, icon: Calendar, label: 'Record Attendance', desc: 'After an event, tick off who attended.', color: 'var(--color-gold)' },
   { key: 'followup' as const, icon: Users, label: 'Follow-Up Notes', desc: 'Keep private notes about sisters who need pastoral care.', color: 'var(--color-gold)' },
+  { key: 'members' as const, icon: Users, label: 'Manage Members', desc: 'View all members, change roles, and track activity.', color: 'var(--color-brand)' },
+  { key: 'mentoring' as const, icon: HeartHandshake, label: 'Mentoring', desc: 'Assign mentors to ladies and manage requests.', color: 'var(--color-brand)' },
 ];
 
 const followUpStatuses: FollowUpStatus[] = ['Texted', 'Called', 'Prayed', 'Needs Support', 'Doing Better'];
@@ -38,6 +41,7 @@ export default function AdminDashboard() {
     recordAttendance, addFollowUpNote,
     addEvent, addBibleStudy, addResource, addPost,
     addDevotional, updateDevotional, deleteDevotional,
+    updateUserRole,
     addToast,
   } = useApp();
 
@@ -94,11 +98,60 @@ export default function AdminDashboard() {
   const [devPrayer, setDevPrayer] = useState('');
   const [devSaving, setDevSaving] = useState(false);
 
+  // User management
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'mentor' | 'lady'>('all');
+  const [userActivityStats, setUserActivityStats] = useState<Record<string, { checkins: number; posts: number; prayers: number }>>({});
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [roleChangeUser, setRoleChangeUser] = useState<{ id: string; name: string; currentRole: string; newRole: 'admin' | 'mentor' | 'lady' } | null>(null);
+
+  // Mentoring
+  const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
+  const [mentorRequests, setMentorRequests] = useState<MentorRequest[]>([]);
+  const [loadingMentoring, setLoadingMentoring] = useState(false);
+  const [assignMentorId, setAssignMentorId] = useState('');
+  const [assignMenteeId, setAssignMenteeId] = useState('');
+
   const BackBtn = () => (
     <button className="btn btn-ghost mb-4" onClick={() => setSection('home')}>
       <ArrowLeft size={18} /> Back to Admin
     </button>
   );
+
+  // Fetch activity stats when members section is opened
+  useEffect(() => {
+    if (section === 'members' && profiles && Object.keys(userActivityStats).length === 0 && !loadingActivity) {
+      setLoadingActivity(true);
+
+      const fetchActivityStats = async () => {
+        const stats: Record<string, { checkins: number; posts: number; prayers: number }> = {};
+
+        for (const profile of profiles) {
+          try {
+            const [checkinsRes, postsRes, prayersRes] = await Promise.all([
+              supabase.from('daily_checkins').select('*', { count: 'exact', head: true }).eq('user_id', profile.id),
+              supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', profile.id),
+              supabase.from('prayer_requests').select('*', { count: 'exact', head: true }).eq('author_id', profile.id),
+            ]);
+
+            stats[profile.id] = {
+              checkins: checkinsRes.count || 0,
+              posts: postsRes.count || 0,
+              prayers: prayersRes.count || 0,
+            };
+          } catch (error) {
+            console.error(`Failed to fetch stats for ${profile.id}:`, error);
+            stats[profile.id] = { checkins: 0, posts: 0, prayers: 0 };
+          }
+        }
+
+        setUserActivityStats(stats);
+        setLoadingActivity(false);
+      };
+
+      fetchActivityStats();
+    }
+  }, [section, profiles, userActivityStats, loadingActivity]);
 
   // ─── Home ───────────────────────────────────────────────
   if (section === 'home') {
@@ -147,7 +200,7 @@ export default function AdminDashboard() {
         <div className="card flex items-start gap-3" style={{ background: 'var(--color-brand-soft)' }}>
           <HelpCircle size={20} style={{ color: 'var(--color-brand)', flexShrink: 0, marginTop: 2 }} />
           <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-            <strong>Tip:</strong> Only leaders can see this page. Changes you make here are visible to the whole community.
+            <strong>Tip:</strong> Only admins can see this page. Changes you make here are visible to the whole community.
           </p>
         </div>
       </div>
@@ -962,6 +1015,330 @@ export default function AdminDashboard() {
             ))}
           </div>
         )}
+      </div>
+    );
+  }
+
+  // ─── Manage Members ─────────────────────────────────────
+  if (section === 'members') {
+    const roleOrder = { admin: 0, mentor: 1, lady: 2 };
+    const filteredUsers = profiles
+      ?.filter(p => {
+        const matchesSearch = searchTerm === '' ||
+          `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesRole = roleFilter === 'all' || p.role === roleFilter;
+        return matchesSearch && matchesRole;
+      })
+      .sort((a, b) => {
+        const ra = roleOrder[a.role as keyof typeof roleOrder] ?? 3;
+        const rb = roleOrder[b.role as keyof typeof roleOrder] ?? 3;
+        if (ra !== rb) return ra - rb;
+        return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+      });
+
+    const roleBadgeClass = (role: string) => {
+      if (role === 'admin') return 'badge-pink';
+      if (role === 'mentor') return 'badge-gold';
+      return 'badge-sage';
+    };
+
+    return (
+      <div className="space-y-5">
+        <BackBtn />
+        <div>
+          <h2 className="font-display text-xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>
+            Manage Members
+          </h2>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            View all members, change roles, and track activity.
+          </p>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="space-y-3">
+          <input
+            type="text"
+            className="input"
+            placeholder="Search by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button className={cn('btn btn-sm flex-1', roleFilter === 'all' && 'btn-primary')} onClick={() => setRoleFilter('all')}>
+              All ({profiles?.length || 0})
+            </button>
+            <button className={cn('btn btn-sm flex-1', roleFilter === 'admin' && 'btn-primary')} onClick={() => setRoleFilter('admin')}>
+              Admin ({profiles?.filter(p => p.role === 'admin').length || 0})
+            </button>
+            <button className={cn('btn btn-sm flex-1', roleFilter === 'mentor' && 'btn-primary')} onClick={() => setRoleFilter('mentor')}>
+              Mentors ({profiles?.filter(p => p.role === 'mentor').length || 0})
+            </button>
+            <button className={cn('btn btn-sm flex-1', roleFilter === 'lady' && 'btn-primary')} onClick={() => setRoleFilter('lady')}>
+              Ladies ({profiles?.filter(p => p.role === 'lady').length || 0})
+            </button>
+          </div>
+        </div>
+
+        {/* Member List */}
+        {filteredUsers && filteredUsers.length > 0 ? (
+          <div className="space-y-3">
+            {filteredUsers.map((member) => {
+              const stats = userActivityStats[member.id] || { checkins: 0, posts: 0, prayers: 0 };
+              return (
+                <div key={member.id} className="card space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Avatar src={member.photo_url} name={`${member.first_name} ${member.last_name}`} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-sm truncate" style={{ color: 'var(--color-text)' }}>
+                          {member.first_name} {member.last_name}
+                        </div>
+                        <span className={cn('badge badge-sm', roleBadgeClass(member.role))}>
+                          {member.role}
+                        </span>
+                      </div>
+                      {member.area && (
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                          {member.area}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Activity Stats */}
+                  <div className="flex gap-4 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    <div><span className="font-bold" style={{ color: 'var(--color-text)' }}>{stats.checkins}</span> check-ins</div>
+                    <div><span className="font-bold" style={{ color: 'var(--color-text)' }}>{stats.posts}</span> posts</div>
+                    <div><span className="font-bold" style={{ color: 'var(--color-text)' }}>{stats.prayers}</span> prayers</div>
+                  </div>
+
+                  {/* Change Role */}
+                  <div>
+                    <select
+                      className="input text-sm"
+                      value={member.role}
+                      onChange={(e) => {
+                        const newRole = e.target.value as 'admin' | 'mentor' | 'lady';
+                        if (newRole !== member.role) {
+                          setRoleChangeUser({
+                            id: member.id,
+                            name: `${member.first_name} ${member.last_name}`,
+                            currentRole: member.role,
+                            newRole,
+                          });
+                        }
+                      }}
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="mentor">Mentor</option>
+                      <option value="lady">Lady</option>
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="card text-center py-8">
+            <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No members found.</p>
+          </div>
+        )}
+
+        {/* Role Change Modal */}
+        <Modal isOpen={!!roleChangeUser} onClose={() => setRoleChangeUser(null)} title="Change User Role" size="sm">
+          {roleChangeUser && (
+            <>
+              <p className="text-sm mb-5" style={{ color: 'var(--color-text-secondary)' }}>
+                Change <strong>{roleChangeUser.name}</strong> from{' '}
+                <strong>{roleChangeUser.currentRole}</strong> to <strong>{roleChangeUser.newRole}</strong>?
+              </p>
+              <div className="flex gap-3">
+                <button className="btn btn-secondary flex-1" onClick={() => setRoleChangeUser(null)}>Cancel</button>
+                <button
+                  className="btn btn-primary flex-1"
+                  onClick={async () => {
+                    try {
+                      await updateUserRole(roleChangeUser.id, roleChangeUser.newRole);
+                      setRoleChangeUser(null);
+                    } catch (error) {
+                      console.error('Failed to update role:', error);
+                      addToast('error', 'Failed to update role');
+                    }
+                  }}
+                >
+                  Confirm
+                </button>
+              </div>
+            </>
+          )}
+        </Modal>
+      </div>
+    );
+  }
+
+  // ─── Mentoring ─────────────────────────────────────────
+  if (section === 'mentoring') {
+    const fetchMentoringData = async () => {
+      if (loadingMentoring) return;
+      setLoadingMentoring(true);
+      const [assignRes, reqRes] = await Promise.all([
+        supabase.from('mentor_assignments').select('*').order('assigned_at', { ascending: false }),
+        supabase.from('mentor_requests').select('*').order('created_at', { ascending: false }),
+      ]);
+      if (assignRes.data) setMentorAssignments(assignRes.data);
+      if (reqRes.data) setMentorRequests(reqRes.data);
+      setLoadingMentoring(false);
+    };
+
+    if (mentorAssignments.length === 0 && mentorRequests.length === 0 && !loadingMentoring) {
+      fetchMentoringData();
+    }
+
+    const mentors = profiles.filter(p => p.role === 'mentor');
+    const ladies = profiles.filter(p => p.role === 'lady');
+
+    const handleAssign = async () => {
+      if (!assignMentorId || !assignMenteeId) return;
+      const { error } = await supabase.from('mentor_assignments').insert({
+        mentor_id: assignMentorId,
+        mentee_id: assignMenteeId,
+        status: 'active',
+      });
+      if (error) {
+        addToast('error', error.message.includes('duplicate') ? 'This pairing already exists' : 'Failed to assign');
+        return;
+      }
+      addToast('success', 'Mentor assigned!');
+      setAssignMentorId('');
+      setAssignMenteeId('');
+      fetchMentoringData();
+    };
+
+    const handleApproveRequest = async (req: MentorRequest, mentorId: string) => {
+      await supabase.from('mentor_requests').update({ status: 'approved' }).eq('id', req.id);
+      await supabase.from('mentor_assignments').insert({
+        mentor_id: mentorId,
+        mentee_id: req.mentee_id,
+        status: 'active',
+      });
+      addToast('success', 'Request approved and mentor assigned!');
+      fetchMentoringData();
+    };
+
+    const handleDeclineRequest = async (reqId: string) => {
+      await supabase.from('mentor_requests').update({ status: 'declined' }).eq('id', reqId);
+      addToast('info', 'Request declined');
+      fetchMentoringData();
+    };
+
+    const handleRemoveAssignment = async (id: string) => {
+      await supabase.from('mentor_assignments').delete().eq('id', id);
+      addToast('success', 'Assignment removed');
+      fetchMentoringData();
+    };
+
+    return (
+      <div className="space-y-5">
+        <BackBtn />
+        <div>
+          <h2 className="font-display text-xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>Mentoring</h2>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>Assign mentors to ladies and manage mentor requests.</p>
+        </div>
+
+        {/* Assign Mentor */}
+        <div className="card space-y-4">
+          <h3 className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>Assign a Mentor</h3>
+          <div>
+            <label className="label">Mentor</label>
+            <select className="input" value={assignMentorId} onChange={(e) => setAssignMentorId(e.target.value)}>
+              <option value="">Select a mentor...</option>
+              {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Lady</label>
+            <select className="input" value={assignMenteeId} onChange={(e) => setAssignMenteeId(e.target.value)}>
+              <option value="">Select a lady...</option>
+              {ladies.map(l => <option key={l.id} value={l.id}>{l.first_name} {l.last_name}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-primary btn-lg w-full" disabled={!assignMentorId || !assignMenteeId} onClick={handleAssign}>
+            Assign Mentor
+          </button>
+        </div>
+
+        {/* Pending Requests */}
+        {mentorRequests.filter(r => r.status === 'pending').length > 0 && (
+          <div className="space-y-3">
+            <h3 className="section-label">Pending Requests</h3>
+            {mentorRequests.filter(r => r.status === 'pending').map(req => {
+              const mentee = profiles.find(p => p.id === req.mentee_id);
+              const preferredMentor = req.mentor_id ? profiles.find(p => p.id === req.mentor_id) : null;
+              return (
+                <div key={req.id} className="card space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar src={mentee?.photo_url ?? null} name={mentee?.first_name ?? 'U'} size="sm" />
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>{mentee?.first_name} {mentee?.last_name}</div>
+                      <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                        {preferredMentor ? `Requested: ${preferredMentor.first_name}` : 'Any mentor'}
+                      </div>
+                    </div>
+                  </div>
+                  {req.message && <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{req.message}</p>}
+                  <div className="space-y-2">
+                    <select className="input text-sm" id={`mentor-select-${req.id}`} defaultValue={req.mentor_id || ''}>
+                      <option value="">Choose mentor to assign...</option>
+                      {mentors.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                      <button className="btn btn-primary btn-sm flex-1" onClick={() => {
+                        const select = document.getElementById(`mentor-select-${req.id}`) as HTMLSelectElement;
+                        if (select.value) handleApproveRequest(req, select.value);
+                        else addToast('error', 'Please select a mentor first');
+                      }}>Approve</button>
+                      <button className="btn btn-secondary btn-sm flex-1" onClick={() => handleDeclineRequest(req.id)}>Decline</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Current Assignments */}
+        <div className="space-y-3">
+          <h3 className="section-label">Current Assignments ({mentorAssignments.filter(a => a.status === 'active').length})</h3>
+          {mentorAssignments.filter(a => a.status === 'active').length === 0 ? (
+            <div className="card text-center py-8">
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No active assignments yet.</p>
+            </div>
+          ) : (
+            mentorAssignments.filter(a => a.status === 'active').map(assignment => {
+              const mentor = profiles.find(p => p.id === assignment.mentor_id);
+              const mentee = profiles.find(p => p.id === assignment.mentee_id);
+              return (
+                <div key={assignment.id} className="card">
+                  <div className="flex items-center gap-3">
+                    <Avatar src={mentor?.photo_url ?? null} name={mentor?.first_name ?? 'M'} size="sm" />
+                    <div className="flex-1">
+                      <div className="text-sm font-bold" style={{ color: 'var(--color-text)' }}>
+                        {mentor?.first_name} → {mentee?.first_name} {mentee?.last_name}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                        Since {new Date(assignment.assigned_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <button className="btn btn-ghost btn-sm text-rose-400"
+                      onClick={() => { if (confirm('Remove this assignment?')) handleRemoveAssignment(assignment.id); }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     );
   }

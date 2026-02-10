@@ -175,7 +175,7 @@ export default function AskElders() {
                 )}
 
                 {/* Leader answer form */}
-                {!q.is_answered && profile?.role === 'leader' && (
+                {!q.is_answered && profile?.role === 'admin' && (
                   answeringId === q.id ? (
                     <div className="mt-3 space-y-3">
                       <textarea className="input" rows={3} placeholder="Write your answer..."

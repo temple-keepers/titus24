@@ -17,7 +17,7 @@ export default function Gallery() {
   const [uploading, setUploading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
-  const isLeader = profile?.role === 'leader';
+  const isAdmin = profile?.role === 'admin';
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedAlbum || !e.target.files?.[0]) return;
@@ -82,7 +82,7 @@ export default function Gallery() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="font-display text-xl font-bold" style={{ color: 'var(--color-text)' }}>Gallery</h1>
-        {isLeader && (
+        {isAdmin && (
           <button className="btn btn-primary btn-sm" onClick={() => setShowAlbumModal(true)}>
             <Plus size={14} /> Album
           </button>

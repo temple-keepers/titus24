@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C \"c:\\\\Users\\\\sagac\\\\Titus24\" status)"
+      "Bash(git -C \"c:\\\\Users\\\\sagac\\\\Titus24\" status)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration"
     ]
   }
 }

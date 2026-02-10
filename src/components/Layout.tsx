@@ -39,7 +39,7 @@ export default function Layout() {
           </NavLink>
 
           <div className="flex items-center gap-1">
-            {profile?.role === 'leader' && (
+            {profile?.role === 'admin' && (
               <NavLink
                 to="/admin"
                 className="flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors no-underline"

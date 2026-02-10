@@ -65,6 +65,7 @@ interface AppState {
   // Profile
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string>;
+  updateUserRole: (userId: string, newRole: 'admin' | 'mentor' | 'lady') => Promise<void>;
 
   // Posts
   addPost: (content: string, imageFile?: File) => Promise<void>;
@@ -184,79 +185,108 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ─── Data Fetching ────────────────────────────────────────
+  // ─── Data Fetching (Two-Phase: Critical → Background) ─────
   const fetchAllData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+
+    // PHASE 1: Critical data only — gets app visible fast
     try {
-      const [
-        profilesRes, postsRes, commentsRes, reactionsRes,
-        prayerReqRes, prayerRespRes,
-        eventsRes, rsvpsRes, remindersRes,
-        studiesRes, studyDaysRes, progressRes, enrollmentsRes,
-        albumsRes, photosRes,
-        messagesRes, resourcesRes, devotionalsRes, notificationsRes,
-        badgesRes, userBadgesRes, notesRes,
-      ] = await Promise.all([
+      const [profilesRes, postsRes, notificationsRes] = await Promise.all([
         supabase.from('profiles').select('*'),
-        supabase.from('posts').select('*').order('created_at', { ascending: false }),
-        supabase.from('comments').select('*').order('created_at', { ascending: true }),
-        supabase.from('reactions').select('*'),
-        supabase.from('prayer_requests').select('*').order('created_at', { ascending: false }),
-        supabase.from('prayer_responses').select('*'),
-        supabase.from('events').select('*').order('date', { ascending: true }),
-        supabase.from('rsvps').select('*'),
-        supabase.from('event_reminders').select('*').eq('user_id', user.id),
-        supabase.from('bible_studies').select('*').order('created_at', { ascending: false }),
-        supabase.from('study_days').select('*').order('day_number', { ascending: true }),
-        supabase.from('study_progress').select('*').eq('user_id', user.id),
-        supabase.from('study_enrollments').select('*'),
-        supabase.from('gallery_albums').select('*').order('created_at', { ascending: false }),
-        supabase.from('gallery_photos').select('*').order('created_at', { ascending: false }),
-        supabase.from('messages').select('*').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`).order('created_at', { ascending: true }),
-        supabase.from('resources').select('*').order('created_at', { ascending: false }),
-        supabase.from('daily_devotionals').select('*').order('date', { ascending: false }),
-        supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
-        supabase.from('badges').select('*'),
-        supabase.from('user_badges').select('*').eq('user_id', user.id),
-        supabase.from('follow_up_notes').select('*').order('created_at', { ascending: false }),
+        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
       ]);
 
       if (profilesRes.data) setProfiles(profilesRes.data);
       if (postsRes.data) setPosts(postsRes.data);
-      if (commentsRes.data) setComments(commentsRes.data);
-      if (reactionsRes.data) setReactions(reactionsRes.data);
-      if (prayerReqRes.data) setPrayerRequests(prayerReqRes.data);
-      if (prayerRespRes.data) setPrayerResponses(prayerRespRes.data);
-      if (eventsRes.data) setEvents(eventsRes.data);
-      if (rsvpsRes.data) setRsvps(rsvpsRes.data);
-      if (remindersRes.data) setEventReminders(remindersRes.data);
-      if (studiesRes.data) setBibleStudies(studiesRes.data);
-      if (studyDaysRes.data) setStudyDays(studyDaysRes.data);
-      if (progressRes.data) setStudyProgress(progressRes.data);
-      if (enrollmentsRes.data) setStudyEnrollments(enrollmentsRes.data);
-      if (albumsRes.data) setGalleryAlbums(albumsRes.data);
-      if (photosRes.data) setGalleryPhotos(photosRes.data);
-      if (messagesRes.data) setMessages(messagesRes.data);
-      if (resourcesRes.data) setResources(resourcesRes.data);
-      if (devotionalsRes.data) setDailyDevotionals(devotionalsRes.data);
       if (notificationsRes.data) setNotifications(notificationsRes.data);
-      if (badgesRes.data) setBadges(badgesRes.data);
-      if (userBadgesRes.data) setUserBadges(userBadgesRes.data);
-      if (notesRes.data) setFollowUpNotes(notesRes.data);
 
-      // Set current user profile
       const me = profilesRes.data?.find((p: Profile) => p.id === user.id);
-      if (me) {
-        setProfile(me);
-        console.log('👤 Current user role:', me.role, '(needs "leader" for devotional admin)');
-      }
+      if (me) setProfile(me);
     } catch (err) {
-      console.error('Data fetch error:', err);
-      addToast('error', 'Failed to load data. Please refresh.');
+      console.error('Critical data fetch error:', err);
+      addToast('error', 'Connection slow. Retrying...');
     } finally {
+      // Unlock the app — user can see Home immediately
       setLoading(false);
     }
+
+    // PHASE 2: Everything else loads in background (non-blocking)
+    const bgFetch = async (label: string, fn: () => Promise<void>) => {
+      try { await fn(); } catch (e) { console.warn(`Background fetch [${label}] failed:`, e); }
+    };
+
+    bgFetch('comments', async () => {
+      const { data } = await supabase.from('comments').select('*').order('created_at', { ascending: true });
+      if (data) setComments(data);
+    });
+    bgFetch('reactions', async () => {
+      const { data } = await supabase.from('reactions').select('*');
+      if (data) setReactions(data);
+    });
+    bgFetch('prayers', async () => {
+      const [reqRes, respRes] = await Promise.all([
+        supabase.from('prayer_requests').select('*').order('created_at', { ascending: false }),
+        supabase.from('prayer_responses').select('*'),
+      ]);
+      if (reqRes.data) setPrayerRequests(reqRes.data);
+      if (respRes.data) setPrayerResponses(respRes.data);
+    });
+    bgFetch('events', async () => {
+      const [evRes, rsvpRes, remRes] = await Promise.all([
+        supabase.from('events').select('*').order('date', { ascending: true }),
+        supabase.from('rsvps').select('*'),
+        supabase.from('event_reminders').select('*').eq('user_id', user.id),
+      ]);
+      if (evRes.data) setEvents(evRes.data);
+      if (rsvpRes.data) setRsvps(rsvpRes.data);
+      if (remRes.data) setEventReminders(remRes.data);
+    });
+    bgFetch('studies', async () => {
+      const [sRes, dRes, pRes, eRes] = await Promise.all([
+        supabase.from('bible_studies').select('*').order('created_at', { ascending: false }),
+        supabase.from('study_days').select('*').order('day_number', { ascending: true }),
+        supabase.from('study_progress').select('*').eq('user_id', user.id),
+        supabase.from('study_enrollments').select('*'),
+      ]);
+      if (sRes.data) setBibleStudies(sRes.data);
+      if (dRes.data) setStudyDays(dRes.data);
+      if (pRes.data) setStudyProgress(pRes.data);
+      if (eRes.data) setStudyEnrollments(eRes.data);
+    });
+    bgFetch('gallery', async () => {
+      const [aRes, pRes] = await Promise.all([
+        supabase.from('gallery_albums').select('*').order('created_at', { ascending: false }),
+        supabase.from('gallery_photos').select('*').order('created_at', { ascending: false }),
+      ]);
+      if (aRes.data) setGalleryAlbums(aRes.data);
+      if (pRes.data) setGalleryPhotos(pRes.data);
+    });
+    bgFetch('messages', async () => {
+      const { data } = await supabase.from('messages').select('*').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`).order('created_at', { ascending: true });
+      if (data) setMessages(data);
+    });
+    bgFetch('resources', async () => {
+      const { data } = await supabase.from('resources').select('*').order('created_at', { ascending: false });
+      if (data) setResources(data);
+    });
+    bgFetch('devotionals', async () => {
+      const { data } = await supabase.from('daily_devotionals').select('*').order('date', { ascending: false });
+      if (data) setDailyDevotionals(data);
+    });
+    bgFetch('badges', async () => {
+      const [bRes, ubRes] = await Promise.all([
+        supabase.from('badges').select('*'),
+        supabase.from('user_badges').select('*').eq('user_id', user.id),
+      ]);
+      if (bRes.data) setBadges(bRes.data);
+      if (ubRes.data) setUserBadges(ubRes.data);
+    });
+    bgFetch('followup', async () => {
+      const { data } = await supabase.from('follow_up_notes').select('*').order('created_at', { ascending: false });
+      if (data) setFollowUpNotes(data);
+    });
   }, [user, addToast]);
 
   useEffect(() => {
@@ -422,6 +452,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     return data.publicUrl;
   }, [user]);
+
+  const updateUserRole = useCallback(async (userId: string, newRole: 'admin' | 'mentor' | 'lady') => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: newRole })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    // Update profiles list
+    setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, role: newRole } : p));
+    addToast('success', `Role updated to ${newRole}`);
+  }, [user, addToast]);
 
   // ─── Post Actions ─────────────────────────────────────────
   const addPost = useCallback(async (content: string, imageFile?: File) => {
@@ -780,7 +824,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     badges, userBadges, followUpNotes,
     toasts, addToast, removeToast,
     signIn, signUp, signOut,
-    updateProfile, uploadAvatar,
+    updateProfile, uploadAvatar, updateUserRole,
     addPost, deletePost, togglePin, toggleReaction, addComment, deleteComment,
     addPrayerRequest, deletePrayerRequest, markPrayerAnswered, togglePrayerResponse,
     addEvent, deleteEvent, rsvpEvent, setEventReminder, removeEventReminder, recordAttendance,
