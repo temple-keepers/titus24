@@ -430,6 +430,7 @@ export interface Pod {
   max_members: number;
   created_by: string;
   is_active: boolean;
+  visibility: 'public' | 'private';
   created_at: string;
 }
 

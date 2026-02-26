@@ -10,12 +10,14 @@ import {
   FileText, Heart, Users, Calendar, ChevronRight,
   Pin, Trash2, ArrowLeft, HelpCircle, BookOpen,
   Library, Megaphone, Plus, X, HeartHandshake, Eye, Mail, Send, Pencil, Download,
+  PartyPopper, ChevronLeft, Cake, Gift,
 } from 'lucide-react';
+import { startOfMonth, endOfMonth, getDay, getDaysInMonth, format, addMonths, subMonths } from 'date-fns';
 import type { FollowUpStatus, ResourceCategory, ResourceType, MentorAssignment, MentorRequest, Pod, PodMember, GuideSectionCategory, EmailAudience, EmailLog } from '@/types';
 
 type AdminSection =
   | 'home' | 'posts' | 'prayers' | 'attendance' | 'followup'
-  | 'bible-study' | 'resources' | 'events' | 'announcements' | 'devotionals' | 'members' | 'mentoring' | 'pods' | 'guide' | 'email';
+  | 'bible-study' | 'resources' | 'events' | 'announcements' | 'devotionals' | 'members' | 'mentoring' | 'pods' | 'guide' | 'email' | 'celebrations';
 
 const tiles = [
   { key: 'announcements' as const, icon: Megaphone, label: 'Announcements', desc: 'Post an announcement that appears on the home page for everyone.', color: 'var(--color-brand)' },
@@ -32,6 +34,7 @@ const tiles = [
   { key: 'pods' as const, icon: Users, label: 'Manage Pods', desc: 'Create accountability groups and assign members.', color: 'var(--color-sage)' },
   { key: 'guide' as const, icon: HelpCircle, label: 'User Guide', desc: 'Manage help content, tutorials, and FAQ.', color: 'var(--color-sage)' },
   { key: 'email' as const, icon: Mail, label: 'Send Email', desc: 'Email members individually or in bulk via Resend.', color: 'var(--color-brand)' },
+  { key: 'celebrations' as const, icon: PartyPopper, label: 'Celebrations', desc: 'Birthday & anniversary calendar for all members.', color: 'var(--color-gold)' },
 ];
 
 const followUpStatuses: FollowUpStatus[] = ['Texted', 'Called', 'Prayed', 'Needs Support', 'Doing Better'];
@@ -2358,7 +2361,7 @@ function PodsAdmin({
   profiles: any[];
   pods: Pod[];
   podMembers: PodMember[];
-  addPod: (name: string, description: string | null, maxMembers: number) => Promise<void>;
+  addPod: (name: string, description: string | null, maxMembers: number, visibility?: 'public' | 'private') => Promise<void>;
   deletePod: (podId: string) => Promise<void>;
   addPodMember: (podId: string, userId: string, role?: 'leader' | 'member') => Promise<void>;
   removePodMember: (podId: string, userId: string) => Promise<void>;
@@ -2368,6 +2371,7 @@ function PodsAdmin({
   const [podName, setPodName] = useState('');
   const [podDesc, setPodDesc] = useState('');
   const [podMaxMembers, setPodMaxMembers] = useState(5);
+  const [podVisibility, setPodVisibility] = useState<'public' | 'private'>('public');
   const [creating, setCreating] = useState(false);
   const [expandedPod, setExpandedPod] = useState<string | null>(null);
   const [addMemberPodId, setAddMemberPodId] = useState<string | null>(null);
@@ -2386,10 +2390,11 @@ function PodsAdmin({
     if (!podName.trim()) return;
     setCreating(true);
     try {
-      await addPod(podName.trim(), podDesc.trim() || null, podMaxMembers);
+      await addPod(podName.trim(), podDesc.trim() || null, podMaxMembers, podVisibility);
       setPodName('');
       setPodDesc('');
       setPodMaxMembers(5);
+      setPodVisibility('public');
     } catch {
       addToast('error', 'Failed to create pod');
     } finally {
@@ -2475,6 +2480,13 @@ function PodsAdmin({
           <label className="label">Max Members</label>
           <input type="number" className="input" min={2} max={20} value={podMaxMembers} onChange={(e) => setPodMaxMembers(parseInt(e.target.value) || 5)} />
         </div>
+        <div>
+          <label className="label">Visibility</label>
+          <select className="input" value={podVisibility} onChange={(e) => setPodVisibility(e.target.value as 'public' | 'private')}>
+            <option value="public">Public — Members can browse and join</option>
+            <option value="private">Private — Invitation only</option>
+          </select>
+        </div>
         <button className="btn btn-primary btn-lg w-full" disabled={!podName.trim() || creating} onClick={handleCreatePod}>
           {creating ? 'Creating...' : 'Create Pod'}
         </button>
@@ -2508,7 +2520,12 @@ function PodsAdmin({
                   onClick={() => setExpandedPod(isExpanded ? null : pod.id)}
                 >
                   <div>
-                    <div className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>{pod.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>{pod.name}</span>
+                      <span className={`badge text-[9px] ${pod.visibility === 'private' ? 'badge-pink' : 'badge-sage'}`}>
+                        {pod.visibility === 'private' ? 'Private' : 'Public'}
+                      </span>
+                    </div>
                     <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                       {members.length}/{pod.max_members} members
                       {pod.description && ` · ${pod.description}`}
@@ -2584,6 +2601,236 @@ function PodsAdmin({
               </div>
             );
           })
+        )}
+      </div>
+    </div>
+  );
+
+  // ─── Celebrations Calendar ──────────────────────────────
+  if (section === 'celebrations') {
+    return <CelebrationsCalendar profiles={profiles} navigate={navigate} BackBtn={BackBtn} />;
+  }
+
+  return null;
+}
+
+// ─── Celebrations Calendar Component ────────────────────────
+function CelebrationsCalendar({
+  profiles,
+  navigate,
+  BackBtn,
+}: {
+  profiles: Array<{ id: string; first_name: string; last_name: string; photo_url: string | null; birthday: string | null; wedding_anniversary: string | null; birthday_visible: boolean }>;
+  navigate: (path: string) => void;
+  BackBtn: () => JSX.Element;
+}) {
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  type CelebrationEntry = { profile: typeof profiles[0]; type: 'birthday' | 'anniversary'; month: number; day: number };
+
+  // Build a list of all celebrations (month/day) from profiles — admins see all, no birthday_visible filter
+  const allCelebrations: CelebrationEntry[] = [];
+  profiles.forEach((p) => {
+    [
+      { date: p.birthday, type: 'birthday' as const },
+      { date: p.wedding_anniversary, type: 'anniversary' as const },
+    ].forEach(({ date, type }) => {
+      if (!date) return;
+      const parts = date.substring(0, 10).split('-');
+      const month = parseInt(parts[1], 10); // 1-indexed
+      const day = parseInt(parts[2], 10);
+      if (month && day) allCelebrations.push({ profile: p, type, month, day });
+    });
+  });
+
+  // Celebrations for the currently viewed month
+  const viewMonth = viewDate.getMonth() + 1; // 1-indexed
+  const monthCelebrations = allCelebrations.filter((c) => c.month === viewMonth);
+
+  // Build a map: day -> celebrations
+  const dayMap = new Map<number, CelebrationEntry[]>();
+  monthCelebrations.forEach((c) => {
+    if (!dayMap.has(c.day)) dayMap.set(c.day, []);
+    dayMap.get(c.day)!.push(c);
+  });
+
+  // Calendar grid
+  const daysInMonth = getDaysInMonth(viewDate);
+  const firstDayOfWeek = getDay(startOfMonth(viewDate)); // 0=Sun
+  const monthLabel = format(viewDate, 'MMMM yyyy');
+
+  // Selected day celebrations
+  const selectedCelebrations = selectedDay ? (dayMap.get(selectedDay) || []) : [];
+
+  // Upcoming 30 days
+  const upcoming30 = (() => {
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const items: Array<CelebrationEntry & { daysAway: number; nextDate: Date }> = [];
+    allCelebrations.forEach((c) => {
+      let thisYear = new Date(now.getFullYear(), c.month - 1, c.day);
+      if (thisYear < todayMidnight) thisYear.setFullYear(thisYear.getFullYear() + 1);
+      const diff = Math.round((thisYear.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff >= 0 && diff <= 30) items.push({ ...c, daysAway: diff, nextDate: thisYear });
+    });
+    return items.sort((a, b) => a.daysAway - b.daysAway);
+  })();
+
+  return (
+    <div className="space-y-5">
+      <BackBtn />
+      <div>
+        <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--color-text)' }}>
+          Celebrations Calendar
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+          All member birthdays and anniversaries
+        </p>
+      </div>
+
+      {/* Month navigation */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <button className="btn btn-ghost btn-sm" onClick={() => { setViewDate(subMonths(viewDate, 1)); setSelectedDay(null); }}>
+            <ChevronLeft size={16} />
+          </button>
+          <h2 className="font-display text-lg font-bold" style={{ color: 'var(--color-text)' }}>{monthLabel}</h2>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setViewDate(addMonths(viewDate, 1)); setSelectedDay(null); }}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        {/* Day-of-week headers */}
+        <div className="grid grid-cols-7 gap-1 mb-1">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+            <div key={d} className="text-[10px] font-bold text-center uppercase" style={{ color: 'var(--color-text-faint)' }}>{d}</div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {/* Empty cells before first day */}
+          {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+            <div key={`empty-${i}`} className="h-10" />
+          ))}
+
+          {/* Day cells */}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const dayNum = i + 1;
+            const entries = dayMap.get(dayNum);
+            const hasBirthday = entries?.some((e) => e.type === 'birthday');
+            const hasAnniversary = entries?.some((e) => e.type === 'anniversary');
+            const isSelected = selectedDay === dayNum;
+            const isToday = dayNum === new Date().getDate() && viewDate.getMonth() === new Date().getMonth() && viewDate.getFullYear() === new Date().getFullYear();
+
+            return (
+              <button
+                key={dayNum}
+                onClick={() => setSelectedDay(isSelected ? null : dayNum)}
+                className="h-10 rounded-lg flex flex-col items-center justify-center relative transition-all"
+                style={{
+                  background: isSelected ? 'var(--color-brand-soft)' : isToday ? 'var(--color-bg-overlay)' : 'transparent',
+                  border: isSelected ? '1.5px solid var(--color-brand)' : isToday ? '1.5px solid var(--color-border)' : '1.5px solid transparent',
+                }}
+              >
+                <span className="text-xs font-semibold" style={{ color: entries ? 'var(--color-text)' : 'var(--color-text-faint)' }}>
+                  {dayNum}
+                </span>
+                {(hasBirthday || hasAnniversary) && (
+                  <div className="flex gap-0.5 mt-0.5">
+                    {hasBirthday && <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-brand)' }} />}
+                    {hasAnniversary && <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-gold)' }} />}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: '1px solid var(--color-border)' }}>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ background: 'var(--color-brand)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>Birthday</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ background: 'var(--color-gold)' }} />
+            <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>Anniversary</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Selected day detail */}
+      {selectedDay !== null && selectedCelebrations.length > 0 && (
+        <div className="card space-y-3">
+          <h3 className="font-bold text-sm" style={{ color: 'var(--color-text)' }}>
+            {format(new Date(viewDate.getFullYear(), viewDate.getMonth(), selectedDay), 'MMMM d')}
+          </h3>
+          {selectedCelebrations.map((c, i) => (
+            <button
+              key={i}
+              onClick={() => navigate(`/member/${c.profile.id}`)}
+              className="flex items-center gap-3 w-full text-left transition-opacity hover:opacity-80"
+            >
+              <Avatar src={c.profile.photo_url} name={c.profile.first_name} size="md" />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm" style={{ color: 'var(--color-text)' }}>
+                  {c.profile.first_name} {c.profile.last_name}
+                </div>
+                <div className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  {c.type === 'birthday' ? 'Birthday' : 'Wedding Anniversary'}
+                </div>
+              </div>
+              <span className="text-lg">{c.type === 'birthday' ? '🎂' : '💍'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedDay !== null && selectedCelebrations.length === 0 && (
+        <div className="card text-center py-4">
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No celebrations on this day</p>
+        </div>
+      )}
+
+      {/* Upcoming 30 days */}
+      <div className="card space-y-3">
+        <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+          <PartyPopper size={16} style={{ color: 'var(--color-gold)' }} />
+          Upcoming 30 Days
+        </h3>
+        {upcoming30.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>No celebrations in the next 30 days</p>
+        ) : (
+          <div className="space-y-2">
+            {upcoming30.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => navigate(`/member/${c.profile.id}`)}
+                className="flex items-center gap-3 w-full text-left transition-opacity hover:opacity-80"
+              >
+                <Avatar src={c.profile.photo_url} name={c.profile.first_name} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-xs" style={{ color: 'var(--color-text)' }}>
+                    {c.profile.first_name} {c.profile.last_name}
+                  </div>
+                  <div className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                    {c.type === 'birthday' ? 'Birthday' : 'Anniversary'}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xs font-semibold" style={{ color: c.daysAway === 0 ? 'var(--color-brand)' : 'var(--color-text)' }}>
+                    {c.daysAway === 0 ? 'Today!' : c.daysAway === 1 ? 'Tomorrow' : `${c.daysAway} days`}
+                  </div>
+                  <div className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+                    {format(c.nextDate, 'MMM d')}
+                  </div>
+                </div>
+                <span className="text-base">{c.type === 'birthday' ? '🎂' : '💍'}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

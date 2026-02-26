@@ -9,9 +9,9 @@ import {
   Users, Heart, Calendar, BookOpen, Camera, Search,
   MessageCircle, Library, Megaphone, Sparkles,
   PartyPopper, HelpCircle, Trophy, HeartHandshake,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, Bell, Award, Mail,
 } from 'lucide-react';
-import type { Profile } from '@/types';
+import type { Profile, NotificationType } from '@/types';
 
 type TileDef = { path: string; icon: typeof Heart; label: string; desc: string; accent: string };
 
@@ -49,7 +49,7 @@ const tileGroups: { title: string; tiles: TileDef[] }[] = [
 ];
 
 export default function Home() {
-  const { profile, profiles, posts, events, prayerRequests, dailyDevotionals, unreadMessageCount, refetchAll } = useApp();
+  const { profile, profiles, posts, events, prayerRequests, dailyDevotionals, notifications, unreadMessageCount, refetchAll } = useApp();
   const handleRefresh = useCallback(() => refetchAll(), [refetchAll]);
   const navigate = useNavigate();
 
@@ -94,7 +94,8 @@ export default function Home() {
   // Activity feed: this week only, categorized, clickable
   type ActivityItem = {
     id: string;
-    type: 'post' | 'prayer' | 'birthday' | 'anniversary';
+    type: 'post' | 'prayer' | 'birthday' | 'anniversary' | 'notification' | 'event';
+    notifType?: NotificationType;
     authorName: string;
     authorPhoto: string | null;
     content: string;
@@ -102,7 +103,13 @@ export default function Home() {
     link: string;
   };
 
+  // Notification types to show in feed (skip ones that duplicate post/prayer items)
+  const feedNotifTypes: NotificationType[] = [
+    'message', 'event_reminder', 'badge_earned', 'study_reminder', 'announcement', 'celebration',
+  ];
+
   const weeklyActivity = useMemo(() => {
+    const now = new Date();
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     const items: ActivityItem[] = [];
@@ -156,10 +163,50 @@ export default function Home() {
         });
       });
 
+    // Notifications from this week (filtered to non-duplicate types)
+    notifications
+      .filter((n) => new Date(n.created_at) >= oneWeekAgo && feedNotifTypes.includes(n.type))
+      .forEach((n) => {
+        items.push({
+          id: `notif-${n.id}`,
+          type: 'notification',
+          notifType: n.type,
+          authorName: n.title,
+          authorPhoto: null,
+          content: n.body,
+          createdAt: n.created_at,
+          link: n.link || '/notifications',
+        });
+      });
+
+    // Upcoming events within 3 days
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    events
+      .filter((e) => {
+        const eventDate = new Date(e.date);
+        return eventDate >= now && eventDate <= threeDaysFromNow;
+      })
+      .forEach((e) => {
+        const eventDate = new Date(e.date);
+        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const daysAway = Math.ceil((eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+        const timeLabel = daysAway <= 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `In ${daysAway} days`;
+        items.push({
+          id: `event-${e.id}`,
+          type: 'event',
+          authorName: e.title,
+          authorPhoto: null,
+          content: `${timeLabel} - ${e.location || 'Location TBD'}`,
+          createdAt: now.toISOString(), // sort near top
+          link: '/events',
+        });
+      });
+
     return items
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 6);
-  }, [posts, prayerRequests, profiles, celebrations]);
+      .slice(0, 10);
+  }, [posts, prayerRequests, profiles, celebrations, notifications, events]);
 
   const badgeForType = (type: ActivityItem['type']) => {
     switch (type) {
@@ -167,6 +214,20 @@ export default function Home() {
       case 'prayer': return { label: 'Prayer', cls: 'badge-pink' };
       case 'birthday': return { label: 'Birthday', cls: 'badge-gold' };
       case 'anniversary': return { label: 'Anniversary', cls: 'badge-gold' };
+      case 'notification': return { label: 'Update', cls: 'badge-sage' };
+      case 'event': return { label: 'Event', cls: 'badge-sage' };
+    }
+  };
+
+  const notifIcon = (notifType?: NotificationType) => {
+    switch (notifType) {
+      case 'message': return Mail;
+      case 'event_reminder': return Calendar;
+      case 'badge_earned': return Award;
+      case 'study_reminder': return BookOpen;
+      case 'announcement': return Megaphone;
+      case 'celebration': return PartyPopper;
+      default: return Bell;
     }
   };
 
@@ -318,6 +379,25 @@ export default function Home() {
             {weeklyActivity.map((item) => {
               const { label, cls } = badgeForType(item.type);
               const isCelebration = item.type === 'birthday' || item.type === 'anniversary';
+              const isIconType = item.type === 'notification' || item.type === 'event';
+
+              const renderLeading = () => {
+                if (isCelebration) {
+                  return <span className="text-xl mt-0.5">{item.type === 'birthday' ? '🎂' : '💍'}</span>;
+                }
+                if (isIconType) {
+                  const Icon = item.type === 'event' ? Calendar : notifIcon(item.notifType);
+                  return (
+                    <div
+                      className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: item.type === 'event' ? 'rgba(130,168,130,0.15)' : 'rgba(245,176,65,0.1)' }}
+                    >
+                      <Icon size={14} style={{ color: item.type === 'event' ? 'var(--color-sage)' : 'var(--color-brand)' }} />
+                    </div>
+                  );
+                }
+                return <Avatar src={item.authorPhoto} name={item.authorName} size="sm" />;
+              };
 
               return (
                 <button
@@ -327,14 +407,13 @@ export default function Home() {
                   style={isCelebration ? {
                     background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-gold-soft) 100%)',
                     borderColor: 'rgba(245,176,65,0.25)',
+                  } : item.type === 'event' ? {
+                    background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-sage-soft) 100%)',
+                    borderColor: 'rgba(130,168,130,0.2)',
                   } : undefined}
                 >
                   <div className="flex items-start gap-3">
-                    {isCelebration ? (
-                      <span className="text-xl mt-0.5">{item.type === 'birthday' ? '🎂' : '💍'}</span>
-                    ) : (
-                      <Avatar src={item.authorPhoto} name={item.authorName} size="sm" />
-                    )}
+                    {renderLeading()}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>

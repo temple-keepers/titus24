@@ -140,11 +140,13 @@ interface AppState {
   addFollowUpNote: (userId: string, note: string, status: FollowUpStatus) => Promise<void>;
 
   // Pods
-  addPod: (name: string, description: string | null, maxMembers: number) => Promise<void>;
+  addPod: (name: string, description: string | null, maxMembers: number, visibility?: 'public' | 'private') => Promise<void>;
   deletePod: (podId: string) => Promise<void>;
   addPodMember: (podId: string, userId: string, role?: 'leader' | 'member') => Promise<void>;
   removePodMember: (podId: string, userId: string) => Promise<void>;
   addPodCheckin: (podId: string, content: string) => Promise<void>;
+  joinPod: (podId: string) => Promise<void>;
+  leavePod: (podId: string) => Promise<void>;
 
   // Guide
   addGuideSection: (data: Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -1134,7 +1136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user, addToast]);
 
   // ─── Pod Actions ────────────────────────────────────────
-  const addPod = useCallback(async (name: string, description: string | null, maxMembers: number) => {
+  const addPod = useCallback(async (name: string, description: string | null, maxMembers: number, visibility: 'public' | 'private' = 'public') => {
     if (!user) return;
     const v = validateTextField(name, MAX_LENGTHS.POD_NAME, 'Pod name');
     if (!v.valid) { addToast('error', v.error!); return; }
@@ -1144,7 +1146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     const { data: newPod, error } = await supabase.from('pods').insert({
-      name: sanitizeText(name), description: description ? sanitizeText(description) : null, max_members: maxMembers, created_by: user.id,
+      name: sanitizeText(name), description: description ? sanitizeText(description) : null, max_members: maxMembers, created_by: user.id, visibility,
     }).select().single();
     if (error) throw error;
     if (newPod) setPods((prev) => [newPod, ...prev]);
@@ -1188,6 +1190,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (newCheckin) setPodCheckins((prev) => [newCheckin, ...prev]);
     addToast('success', 'Check-in posted');
   }, [user, addToast]);
+
+  const joinPod = useCallback(async (podId: string) => {
+    if (!user) return;
+    const pod = pods.find((p) => p.id === podId);
+    if (!pod) { addToast('error', 'Pod not found'); return; }
+    if (!pod.is_active) { addToast('error', 'This pod is no longer active'); return; }
+    if (pod.visibility === 'private') { addToast('error', 'This pod is private'); return; }
+    const memberCount = podMembers.filter((m) => m.pod_id === podId).length;
+    if (memberCount >= pod.max_members) { addToast('error', 'This pod is full'); return; }
+    if (podMembers.some((m) => m.pod_id === podId && m.user_id === user.id)) { addToast('error', 'You are already in this pod'); return; }
+    const { data: newMember, error } = await supabase.from('pod_members').insert({
+      pod_id: podId, user_id: user.id, role: 'member',
+    }).select().single();
+    if (error) throw error;
+    if (newMember) setPodMembers((prev) => [...prev, newMember]);
+    addToast('success', `You joined ${pod.name}!`);
+  }, [user, pods, podMembers, addToast]);
+
+  const leavePod = useCallback(async (podId: string) => {
+    if (!user) return;
+    const membership = podMembers.find((m) => m.pod_id === podId && m.user_id === user.id);
+    if (!membership) { addToast('error', 'You are not in this pod'); return; }
+    if (membership.role === 'leader') { addToast('error', 'Pod leaders cannot leave. Ask an admin to remove you.'); return; }
+    await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', user.id);
+    setPodMembers((prev) => prev.filter((m) => !(m.pod_id === podId && m.user_id === user.id)));
+    addToast('success', 'You left the pod');
+  }, [user, podMembers, addToast]);
 
   // ─── Guide Actions ──────────────────────────────────────
   const addGuideSection = useCallback(async (data: Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
@@ -1262,7 +1291,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addDevotional, updateDevotional, deleteDevotional,
     markNotificationRead, markAllNotificationsRead, deleteNotification, unreadNotificationCount,
     addFollowUpNote,
-    addPod, deletePod, addPodMember, removePodMember, addPodCheckin,
+    addPod, deletePod, addPodMember, removePodMember, addPodCheckin, joinPod, leavePod,
     addGuideSection, updateGuideSection, deleteGuideSection,
     loadMorePosts, hasMorePosts, loadingMorePosts,
     loadMorePrayers, hasMorePrayers, loadingMorePrayers,
