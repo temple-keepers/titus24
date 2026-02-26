@@ -154,7 +154,7 @@ export default function PrayerPartners() {
             {daysLeft} days remaining in this pairing
           </div>
 
-          <NavLink to="/messages" className="btn btn-sage w-full max-w-[200px] mx-auto no-underline">
+          <NavLink to={`/messages?to=${partnerId}`} className="btn btn-sage w-full max-w-[200px] mx-auto no-underline">
             <MessageCircle size={18} /> Send a Message
           </NavLink>
         </div>
