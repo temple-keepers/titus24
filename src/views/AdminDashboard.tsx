@@ -1643,7 +1643,7 @@ export default function AdminDashboard() {
             }
             setRemoveTarget(null);
           }}
-          onCancel={() => setRemoveTarget(null)}
+          onClose={() => setRemoveTarget(null)}
         />
       </div>
     );
