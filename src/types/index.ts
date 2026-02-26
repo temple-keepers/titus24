@@ -111,6 +111,7 @@ export interface AppEvent {
   description: string;
   date: string;
   time: string;
+  timezone: string;
   location: string;
   what_to_bring: string | null;
   created_by: string;

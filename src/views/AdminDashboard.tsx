@@ -87,6 +87,7 @@ export default function AdminDashboard() {
   const [evtTime, setEvtTime] = useState('');
   const [evtLocation, setEvtLocation] = useState('');
   const [evtBring, setEvtBring] = useState('');
+  const [evtTimezone, setEvtTimezone] = useState('America/Port_of_Spain');
   const [evtSaving, setEvtSaving] = useState(false);
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
 
@@ -391,6 +392,20 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div>
+            <label className="label">Timezone</label>
+            <select className="input" value={evtTimezone} onChange={(e) => setEvtTimezone(e.target.value)}>
+              <option value="America/Port_of_Spain">AST (Trinidad & Caribbean)</option>
+              <option value="America/Guyana">GYT (Guyana)</option>
+              <option value="America/New_York">EST/EDT (US East)</option>
+              <option value="America/Chicago">CST/CDT (US Central)</option>
+              <option value="America/Denver">MST/MDT (US Mountain)</option>
+              <option value="America/Los_Angeles">PST/PDT (US West)</option>
+              <option value="Europe/London">GMT/BST (London)</option>
+              <option value="Africa/Lagos">WAT (West Africa)</option>
+              <option value="America/Toronto">EST/EDT (Canada East)</option>
+            </select>
+          </div>
+          <div>
             <label className="label">Location</label>
             <input className="input" placeholder="e.g. Zoom / Church Hall / Online" value={evtLocation} onChange={(e) => setEvtLocation(e.target.value)} />
           </div>
@@ -410,10 +425,11 @@ export default function AdminDashboard() {
                   description: evtDesc.trim(),
                   date: evtDate,
                   time: evtTime,
+                  timezone: evtTimezone,
                   location: evtLocation.trim(),
                   what_to_bring: evtBring.trim() || null,
                 });
-                setEvtTitle(''); setEvtDesc(''); setEvtDate(''); setEvtTime(''); setEvtLocation(''); setEvtBring('');
+                setEvtTitle(''); setEvtDesc(''); setEvtDate(''); setEvtTime(''); setEvtTimezone('America/Port_of_Spain'); setEvtLocation(''); setEvtBring('');
                 addToast('success', 'Event created!');
                 setSection('home');
               } catch {
@@ -449,6 +465,7 @@ export default function AdminDashboard() {
                         setEvtDesc(evt.description);
                         setEvtDate(evt.date);
                         setEvtTime(evt.time);
+                        setEvtTimezone(evt.timezone || 'America/Port_of_Spain');
                         setEvtLocation(evt.location || '');
                         setEvtBring(evt.what_to_bring || '');
                       }}
@@ -496,6 +513,20 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div>
+              <label className="label">Timezone</label>
+              <select className="input" value={evtTimezone} onChange={(e) => setEvtTimezone(e.target.value)}>
+                <option value="America/Port_of_Spain">AST (Trinidad & Caribbean)</option>
+                <option value="America/Guyana">GYT (Guyana)</option>
+                <option value="America/New_York">EST/EDT (US East)</option>
+                <option value="America/Chicago">CST/CDT (US Central)</option>
+                <option value="America/Denver">MST/MDT (US Mountain)</option>
+                <option value="America/Los_Angeles">PST/PDT (US West)</option>
+                <option value="Europe/London">GMT/BST (London)</option>
+                <option value="Africa/Lagos">WAT (West Africa)</option>
+                <option value="America/Toronto">EST/EDT (Canada East)</option>
+              </select>
+            </div>
+            <div>
               <label className="label">Location</label>
               <input className="input" value={evtLocation} onChange={(e) => setEvtLocation(e.target.value)} />
             </div>
@@ -514,11 +545,12 @@ export default function AdminDashboard() {
                     description: evtDesc.trim(),
                     date: evtDate,
                     time: evtTime,
+                    timezone: evtTimezone,
                     location: evtLocation.trim(),
                     what_to_bring: evtBring.trim() || null,
                   });
                   setEditingEvent(null);
-                  setEvtTitle(''); setEvtDesc(''); setEvtDate(''); setEvtTime(''); setEvtLocation(''); setEvtBring('');
+                  setEvtTitle(''); setEvtDesc(''); setEvtDate(''); setEvtTime(''); setEvtTimezone('America/Port_of_Spain'); setEvtLocation(''); setEvtBring('');
                 } catch {
                   addToast('error', 'Failed to update event');
                 }
