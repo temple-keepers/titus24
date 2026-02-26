@@ -8,7 +8,7 @@ import { timeAgo, cn } from '@/lib/utils';
 import { POINT_VALUES } from '@/lib/devotionals';
 import {
   Plus, Sparkles, Hand, MessageCircle, Send, ChevronDown, ChevronUp,
-  PartyPopper, CheckCircle2, Heart,
+  PartyPopper, CheckCircle2, Circle, Heart,
 } from 'lucide-react';
 import { validateTextField, sanitizeText, checkRateLimit, MAX_LENGTHS } from '@/lib/validation';
 import type { PrayerCategory, Testimony, TestimonyCelebration, TestimonyCategory } from '@/types';
@@ -443,13 +443,13 @@ export default function PrayerWall() {
                           onClick={() => handlePrayerAnsweredClick(req.id)}
                           className="btn btn-sm ml-auto"
                           style={{
-                            background: 'rgba(16,185,129,0.1)',
-                            color: 'rgb(16,185,129)',
-                            border: '1.5px solid rgba(16,185,129,0.25)',
+                            background: 'transparent',
+                            color: 'var(--color-text-muted)',
+                            border: '1.5px solid var(--color-border)',
                           }}
                         >
-                          <CheckCircle2 size={14} />
-                          Prayer Answered
+                          <Circle size={14} />
+                          Mark as Answered
                         </button>
                       )}
                     </div>
