@@ -3,11 +3,12 @@ import { useApp } from '@/context/AppContext';
 import { MOOD_OPTIONS, POINT_VALUES } from '@/lib/devotionals';
 import { supabase } from '@/lib/supabase';
 import { Heart, Send, Check, Flame, BookOpen, TrendingUp, AlertCircle } from 'lucide-react';
+import { validateTextField, sanitizeText, MAX_LENGTHS } from '@/lib/validation';
 import type { MoodType } from '@/types';
 
 export default function CheckIn() {
   const { user, profile, addToast, updateProfile } = useApp();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
 
   const [checkedIn, setCheckedIn] = useState(false);
   const [selectedMood, setSelectedMood] = useState<MoodType | null>(null);
@@ -67,10 +68,20 @@ export default function CheckIn() {
     if (!user || !selectedMood) return;
     setSaving(true);
     try {
+      // Validate optional text fields
+      if (gratitude) {
+        const gv = validateTextField(gratitude, MAX_LENGTHS.GRATITUDE, 'Gratitude', false);
+        if (!gv.valid) { addToast('error', gv.error!); setSaving(false); return; }
+      }
+
       const { error } = await supabase.from('daily_checkins').upsert({
         user_id: user.id,
         mood: selectedMood,
         gratitude: gratitude.trim() || null,
+        challenge: challenge.trim() || null,
+        victory: victory.trim() || null,
+        prayer_need: prayerNeed.trim() || null,
+        read_scripture: readScripture,
         date: today,
       }, { onConflict: 'user_id,date' });
       if (error) throw error;
@@ -79,7 +90,7 @@ export default function CheckIn() {
       const lastDate = profile?.last_checkin_date;
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
       let newStreak = 1;
       if (lastDate === yesterdayStr) {

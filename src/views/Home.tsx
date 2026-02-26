@@ -1,35 +1,57 @@
-import { NavLink } from 'react-router-dom';
+import { useState, useMemo, useCallback } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import PullToRefresh from '@/components/PullToRefresh';
 import Avatar from '@/components/Avatar';
 import { timeAgo } from '@/lib/utils';
 import { getTodaysDevotional } from '@/lib/devotionals';
 import {
   Users, Heart, Calendar, BookOpen, Camera, Search,
-  MessageCircle, Library, Pin, Megaphone, Sparkles,
+  MessageCircle, Library, Megaphone, Sparkles,
   PartyPopper, HelpCircle, Trophy, HeartHandshake,
-  ChevronRight,
+  ChevronRight, ChevronDown,
 } from 'lucide-react';
+import type { Profile } from '@/types';
 
-const tiles = [
-  { path: '/check-in', icon: Heart, label: 'Check-In', desc: 'Daily heart check', accent: 'var(--color-brand)' },
-  { path: '/devotional', icon: Sparkles, label: 'Devotional', desc: 'Read today\'s word', accent: 'var(--color-brand)' },
-  { path: '/community', icon: Users, label: 'Community', desc: 'Share & encourage', accent: 'var(--color-brand)' },
-  { path: '/prayer', icon: Heart, label: 'Prayer Wall', desc: 'Lift up your sisters', accent: 'var(--color-brand)' },
-  { path: '/prayer-partners', icon: HeartHandshake, label: 'Prayer Partner', desc: 'Weekly prayer pair', accent: 'var(--color-brand)' },
-  { path: '/testimonies', icon: PartyPopper, label: 'Testimonies', desc: 'Celebrate God\'s work', accent: 'var(--color-gold)' },
-  { path: '/ask-elders', icon: HelpCircle, label: 'Ask Elders', desc: 'Anonymous Q&A', accent: 'var(--color-sage)' },
-  { path: '/leaderboard', icon: Trophy, label: 'Leaderboard', desc: 'Points & streaks', accent: 'var(--color-gold)' },
-  { path: '/events', icon: Calendar, label: 'Events', desc: 'Upcoming gatherings', accent: 'var(--color-sage)' },
-  { path: '/study', icon: BookOpen, label: 'Bible Study', desc: 'Grow in the Word', accent: 'var(--color-sage)' },
-  { path: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Chat with sisters', accent: 'var(--color-brand)' },
-  { path: '/gallery', icon: Camera, label: 'Gallery', desc: 'Shared memories', accent: 'var(--color-gold)' },
-  { path: '/resources', icon: Library, label: 'Resources', desc: 'Teachings & links', accent: 'var(--color-sage)' },
-  { path: '/directory', icon: Users, label: 'Directory', desc: 'Meet the sisters', accent: 'var(--color-gold)' },
-  { path: '/search', icon: Search, label: 'Search', desc: 'Find anything', accent: 'var(--color-text-muted)' },
+type TileDef = { path: string; icon: typeof Heart; label: string; desc: string; accent: string };
+
+const tileGroups: { title: string; tiles: TileDef[] }[] = [
+  {
+    title: 'Daily Spiritual Life',
+    tiles: [
+      { path: '/check-in', icon: Heart, label: 'Check-In', desc: 'Daily heart check', accent: 'var(--color-brand)' },
+      { path: '/devotional', icon: Sparkles, label: 'Devotional', desc: "Read today's word", accent: 'var(--color-brand)' },
+      { path: '/prayer', icon: Heart, label: 'Prayer & Praise', desc: 'Prayers & testimonies', accent: 'var(--color-brand)' },
+    ],
+  },
+  {
+    title: 'Community',
+    tiles: [
+      { path: '/community', icon: Users, label: 'Community', desc: 'Share & encourage', accent: 'var(--color-brand)' },
+      { path: '/messages', icon: MessageCircle, label: 'Messages', desc: 'Chat with sisters', accent: 'var(--color-brand)' },
+      { path: '/prayer-partners', icon: HeartHandshake, label: 'Prayer Partner', desc: 'Weekly prayer pair', accent: 'var(--color-brand)' },
+      { path: '/pods', icon: Users, label: 'My Pod', desc: 'Accountability group', accent: 'var(--color-sage)' },
+      { path: '/ask-elders', icon: HelpCircle, label: 'Ask Elders', desc: 'Anonymous Q&A', accent: 'var(--color-sage)' },
+      { path: '/directory', icon: Users, label: 'Directory', desc: 'Meet the sisters', accent: 'var(--color-gold)' },
+    ],
+  },
+  {
+    title: 'Events & Growth',
+    tiles: [
+      { path: '/events', icon: Calendar, label: 'Events', desc: 'Upcoming gatherings', accent: 'var(--color-sage)' },
+      { path: '/study', icon: BookOpen, label: 'Bible Study', desc: 'Grow in the Word', accent: 'var(--color-sage)' },
+      { path: '/leaderboard', icon: Trophy, label: 'Leaderboard', desc: 'Points & streaks', accent: 'var(--color-gold)' },
+      { path: '/gallery', icon: Camera, label: 'Gallery', desc: 'Shared memories', accent: 'var(--color-gold)' },
+      { path: '/resources', icon: Library, label: 'Resources', desc: 'Teachings & links', accent: 'var(--color-sage)' },
+      { path: '/guide', icon: BookOpen, label: 'User Guide', desc: 'How to use the app', accent: 'var(--color-sage)' },
+    ],
+  },
 ];
 
 export default function Home() {
-  const { profile, profiles, posts, events, prayerRequests, dailyDevotionals } = useApp();
+  const { profile, profiles, posts, events, prayerRequests, dailyDevotionals, unreadMessageCount, refetchAll } = useApp();
+  const handleRefresh = useCallback(() => refetchAll(), [refetchAll]);
+  const navigate = useNavigate();
 
   const today = new Date().toISOString().split('T')[0];
   const todaysDevotional = dailyDevotionals.find(d => d.date === today) || getTodaysDevotional();
@@ -40,9 +62,12 @@ export default function Home() {
   const announcements = posts.filter((p) => p.is_pinned);
 
   // Celebrations: upcoming birthdays & anniversaries within 7 days
-  const celebrations = (() => {
+  const celebrations = useMemo(() => {
     const now = new Date();
-    const items: Array<{ name: string; type: 'birthday' | 'anniversary'; daysAway: number }> = [];
+    // Midnight today in local time — avoids time-of-day comparison issues
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const items: Array<{ profile: Profile; type: 'birthday' | 'anniversary'; daysAway: number }> = [];
     profiles.forEach(p => {
       if (!p.birthday_visible) return;
       [
@@ -50,17 +75,103 @@ export default function Home() {
         { date: p.wedding_anniversary, type: 'anniversary' as const },
       ].forEach(({ date, type }) => {
         if (!date) return;
-        const d = new Date(date);
-        const thisYear = new Date(now.getFullYear(), d.getMonth(), d.getDate());
-        if (thisYear < now) thisYear.setFullYear(thisYear.getFullYear() + 1);
-        const diff = Math.ceil((thisYear.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (diff <= 7) items.push({ name: p.first_name, type, daysAway: diff });
+        // Parse date parts manually to avoid UTC/local timezone mismatch
+        const parts = date.substring(0, 10).split('-');
+        const month = parseInt(parts[1], 10) - 1; // 0-indexed
+        const day = parseInt(parts[2], 10);
+
+        let thisYear = new Date(now.getFullYear(), month, day);
+        // If it already passed this year (before today), use next year
+        if (thisYear < todayMidnight) thisYear.setFullYear(thisYear.getFullYear() + 1);
+
+        const diff = Math.round((thisYear.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 7) items.push({ profile: p, type, daysAway: diff });
       });
     });
     return items.sort((a, b) => a.daysAway - b.daysAway);
-  })();
+  }, [profiles]);
+
+  // Activity feed: this week only, categorized, clickable
+  type ActivityItem = {
+    id: string;
+    type: 'post' | 'prayer' | 'birthday' | 'anniversary';
+    authorName: string;
+    authorPhoto: string | null;
+    content: string;
+    createdAt: string;
+    link: string;
+  };
+
+  const weeklyActivity = useMemo(() => {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const items: ActivityItem[] = [];
+
+    // Posts from this week
+    posts
+      .filter((p) => new Date(p.created_at) >= oneWeekAgo)
+      .forEach((p) => {
+        const author = profiles.find((pr) => pr.id === p.author_id);
+        items.push({
+          id: p.id,
+          type: 'post',
+          authorName: author?.first_name || 'Someone',
+          authorPhoto: author?.photo_url ?? null,
+          content: p.content,
+          createdAt: p.created_at,
+          link: '/community',
+        });
+      });
+
+    // Prayers from this week
+    prayerRequests
+      .filter((p) => new Date(p.created_at) >= oneWeekAgo)
+      .forEach((p) => {
+        const author = profiles.find((pr) => pr.id === p.author_id);
+        items.push({
+          id: p.id,
+          type: 'prayer',
+          authorName: p.is_anonymous ? 'Anonymous' : (author?.first_name || 'Someone'),
+          authorPhoto: p.is_anonymous ? null : (author?.photo_url ?? null),
+          content: p.content,
+          createdAt: p.created_at,
+          link: '/prayer',
+        });
+      });
+
+    // Today's celebrations as activity items
+    celebrations
+      .filter((c) => c.daysAway === 0)
+      .forEach((c) => {
+        items.push({
+          id: `celeb-${c.profile.id}-${c.type}`,
+          type: c.type === 'birthday' ? 'birthday' : 'anniversary',
+          authorName: c.profile.first_name,
+          authorPhoto: c.profile.photo_url,
+          content: c.type === 'birthday'
+            ? `Happy Birthday, ${c.profile.first_name}!`
+            : `Happy Anniversary, ${c.profile.first_name}!`,
+          createdAt: new Date().toISOString(),
+          link: `/member/${c.profile.id}`,
+        });
+      });
+
+    return items
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 6);
+  }, [posts, prayerRequests, profiles, celebrations]);
+
+  const badgeForType = (type: ActivityItem['type']) => {
+    switch (type) {
+      case 'post': return { label: 'Post', cls: 'badge-gold' };
+      case 'prayer': return { label: 'Prayer', cls: 'badge-pink' };
+      case 'birthday': return { label: 'Birthday', cls: 'badge-gold' };
+      case 'anniversary': return { label: 'Anniversary', cls: 'badge-gold' };
+    }
+  };
 
   return (
+    <PullToRefresh onRefresh={handleRefresh}>
     <div className="space-y-7 stagger">
       {/* Welcome */}
       <div className="text-center pt-2">
@@ -178,67 +289,108 @@ export default function Home() {
           </div>
           <div className="space-y-2">
             {celebrations.map((c, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                <span>{c.type === 'birthday' ? '🎂' : '💍'}</span>
+              <button
+                key={i}
+                onClick={() => navigate(`/member/${c.profile.id}`)}
+                className="flex items-center gap-2 text-sm w-full text-left transition-opacity hover:opacity-80"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                <Avatar src={c.profile.photo_url} name={c.profile.first_name} size="sm" />
                 <span>
-                  <strong style={{ color: 'var(--color-text)' }}>{c.name}</strong>
+                  <strong style={{ color: 'var(--color-text)' }}>{c.profile.first_name}</strong>
                   {c.type === 'birthday' ? "'s birthday" : "'s anniversary"}{' '}
                   {c.daysAway === 0 ? 'is today!' : c.daysAway === 1 ? 'is tomorrow!' : `in ${c.daysAway} days`}
                 </span>
-              </div>
+                <span className="ml-auto text-base">{c.type === 'birthday' ? '🎂' : '💍'}</span>
+              </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* Activity Feed */}
-      {(posts.length > 0 || prayerRequests.length > 0) && (
+      {/* Activity Feed — This Week */}
+      {weeklyActivity.length > 0 && (
         <div>
           <h2 className="font-display text-lg font-bold mb-3" style={{ color: 'var(--color-text)' }}>
-            Recent Activity
+            This Week
           </h2>
           <div className="space-y-3">
-            {[...posts, ...prayerRequests]
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-              .slice(0, 4)
-              .map((item) => {
-                const author = profiles.find((p) => p.id === item.author_id);
-                const isPrayer = 'is_answered' in item;
+            {weeklyActivity.map((item) => {
+              const { label, cls } = badgeForType(item.type);
+              const isCelebration = item.type === 'birthday' || item.type === 'anniversary';
 
-                return (
-                  <div key={item.id} className="card p-3">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-medium" style={{ color: 'var(--color-text)' }}>
-                            {author?.first_name || 'Anonymous'}
-                          </span>
-                          {isPrayer ? (
-                            <span className="badge badge-pink text-[9px]">Prayer</span>
-                          ) : (
-                            <span className="badge badge-gold text-[9px]">Post</span>
-                          )}
-                        </div>
-                        <p className="text-xs line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
-                          {item.content}
-                        </p>
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => navigate(item.link)}
+                  className="card p-3 w-full text-left transition-all active:scale-[0.98]"
+                  style={isCelebration ? {
+                    background: 'linear-gradient(135deg, var(--color-bg-raised) 0%, var(--color-gold-soft) 100%)',
+                    borderColor: 'rgba(245,176,65,0.25)',
+                  } : undefined}
+                >
+                  <div className="flex items-start gap-3">
+                    {isCelebration ? (
+                      <span className="text-xl mt-0.5">{item.type === 'birthday' ? '🎂' : '💍'}</span>
+                    ) : (
+                      <Avatar src={item.authorPhoto} name={item.authorName} size="sm" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-semibold" style={{ color: 'var(--color-text)' }}>
+                          {item.authorName}
+                        </span>
+                        <span className={`badge text-[9px] ${cls}`}>{label}</span>
+                        <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-faint)' }}>
+                          {timeAgo(item.createdAt)}
+                        </span>
                       </div>
+                      <p className="text-xs line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>
+                        {item.content}
+                      </p>
                     </div>
+                    <ChevronRight size={14} className="flex-shrink-0 mt-1" style={{ color: 'var(--color-text-faint)' }} />
                   </div>
-                );
-              })}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Navigation Tiles — 3-column grid */}
+      {/* Navigation Tiles — grouped */}
+      {tileGroups.map((group) => (
+        <TileGroup key={group.title} title={group.title} tiles={group.tiles} unreadMessageCount={unreadMessageCount} />
+      ))}
+    </div>
+    </PullToRefresh>
+  );
+}
+
+function TileGroup({ title, tiles, unreadMessageCount }: { title: string; tiles: TileDef[]; unreadMessageCount: number }) {
+  const [expanded, setExpanded] = useState(tiles.length <= 3);
+  const visible = expanded ? tiles : tiles.slice(0, 3);
+
+  return (
+    <div>
+      <h2 className="font-display text-sm font-bold mb-2 uppercase tracking-wide" style={{ color: 'var(--color-text-faint)' }}>
+        {title}
+      </h2>
       <div className="grid grid-cols-3 gap-3">
-        {tiles.map(({ path, icon: Icon, label, accent }) => (
+        {visible.map(({ path, icon: Icon, label, accent }) => (
           <NavLink
             key={path}
             to={path}
-            className="card flex flex-col items-center text-center py-4 px-2 no-underline transition-all hover:border-[var(--color-brand)] hover:shadow-soft-lg active:scale-[0.97]"
+            className="card flex flex-col items-center text-center py-4 px-2 no-underline transition-all hover:border-[var(--color-brand)] hover:shadow-soft-lg active:scale-[0.97] relative"
           >
+            {path === '/messages' && unreadMessageCount > 0 && (
+              <span
+                className="absolute top-2 right-2 min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1"
+                style={{ background: 'var(--color-brand)' }}
+              >
+                {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+              </span>
+            )}
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center mb-2"
               style={{ background: `${accent}15` }}
@@ -251,6 +403,14 @@ export default function Home() {
           </NavLink>
         ))}
       </div>
+      {tiles.length > 3 && !expanded && (
+        <button
+          className="btn btn-ghost btn-sm w-full mt-2"
+          onClick={() => setExpanded(true)}
+        >
+          See all <ChevronDown size={14} />
+        </button>
+      )}
     </div>
   );
 }

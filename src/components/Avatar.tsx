@@ -4,11 +4,12 @@ import { cn } from '@/lib/utils';
 interface Props {
   src: string | null;
   name: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
 
 const sizes = {
+  xs: 'w-7 h-7 text-[10px]',
   sm: 'w-10 h-10 text-sm',
   md: 'w-[52px] h-[52px] text-base',
   lg: 'w-[76px] h-[76px] text-xl',

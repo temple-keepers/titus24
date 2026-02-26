@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useApp } from '@/context/AppContext';
+import { countries } from '@/lib/countries';
 import { Camera, ArrowRight } from 'lucide-react';
 
 export default function Onboarding() {
   const { profile, updateProfile, uploadAvatar, addToast } = useApp();
-  const [area, setArea] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
   const [about, setAbout] = useState('');
   const [prayerFocus, setPrayerFocus] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -27,11 +29,16 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
-    if (!area.trim()) { setErrorMsg('Please enter your area'); return; }
+    if (!city.trim()) { setErrorMsg('Please enter your city'); return; }
+    if (!country) { setErrorMsg('Please select your country'); return; }
     setSaving(true);
     setErrorMsg('');
     try {
-      const updates: Record<string, any> = { area: area.trim() };
+      const updates: Record<string, any> = {
+        city: city.trim(),
+        country,
+        area: `${city.trim()}, ${country}`,
+      };
       if (about.trim()) updates.about = about.trim();
       if (prayerFocus.trim()) updates.prayer_focus = prayerFocus.trim();
       await updateProfile(updates);
@@ -105,8 +112,17 @@ export default function Onboarding() {
         {/* Fields */}
         <div className="space-y-4">
           <div>
-            <label className="label">Where are you based? *</label>
-            <input type="text" className="input" placeholder="e.g. Kingston, Jamaica" value={area} onChange={(e) => setArea(e.target.value)} />
+            <label className="label">Country *</label>
+            <select className="input" value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="">Select your country...</option>
+              {countries.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">City / Town *</label>
+            <input type="text" className="input" placeholder="e.g. Kingston" value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
           <div>
             <label className="label">Tell us about you</label>
@@ -118,7 +134,7 @@ export default function Onboarding() {
           </div>
         </div>
 
-        <button onClick={handleComplete} className="btn btn-primary btn-lg w-full" disabled={saving || !area.trim()}>
+        <button onClick={handleComplete} className="btn btn-primary btn-lg w-full" disabled={saving || !city.trim() || !country}>
           {saving ? 'Saving…' : 'Join the Sisterhood'}
           <ArrowRight size={18} />
         </button>

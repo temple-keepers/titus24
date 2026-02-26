@@ -6,7 +6,7 @@ import { BookOpen, Check } from 'lucide-react';
 
 export default function DailyDevotional() {
   const { user, dailyDevotionals, addToast } = useApp();
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
   const devotional = dailyDevotionals.find(d => d.date === today) || getTodaysDevotional();
 
   const [devotionalRead, setDevotionalRead] = useState(false);

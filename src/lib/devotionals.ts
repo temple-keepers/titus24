@@ -131,7 +131,10 @@ export function getTodaysDevotional(): DevotionalContent {
   const start = new Date(now.getFullYear(), 0, 0);
   const diff = now.getTime() - start.getTime();
   const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-  return devotionals[dayOfYear % devotionals.length];
+  // Add week-of-year offset so the same day of the week gets different devotionals across weeks
+  const weekOfYear = Math.floor(dayOfYear / 7);
+  const index = (dayOfYear + weekOfYear) % devotionals.length;
+  return devotionals[index];
 }
 
 export function getDevotionalByDate(dateStr: string): DevotionalContent {
@@ -139,7 +142,9 @@ export function getDevotionalByDate(dateStr: string): DevotionalContent {
   const start = new Date(date.getFullYear(), 0, 0);
   const diff = date.getTime() - start.getTime();
   const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
-  return devotionals[dayOfYear % devotionals.length];
+  const weekOfYear = Math.floor(dayOfYear / 7);
+  const index = (dayOfYear + weekOfYear) % devotionals.length;
+  return devotionals[index];
 }
 
 // Point values for each action

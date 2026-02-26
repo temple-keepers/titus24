@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
+import { mapAuthError } from '@/lib/errors';
 
 export default function Auth() {
   const { signIn, signUp, addToast } = useApp();
@@ -30,9 +31,8 @@ export default function Auth() {
         setSuccessMsg('Reset link sent! Check your inbox (and spam folder).');
       }
     } catch (err: any) {
-      const msg = err?.message || 'Something went wrong';
       console.error('Auth error:', err);
-      setErrorMsg(msg);
+      setErrorMsg(mapAuthError(err));
     } finally {
       setLoading(false);
     }

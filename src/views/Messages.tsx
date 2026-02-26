@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Avatar from '@/components/Avatar';
 import EmptyState from '@/components/EmptyState';
@@ -6,10 +7,21 @@ import { timeAgo } from '@/lib/utils';
 import { Send, ArrowLeft } from 'lucide-react';
 
 export default function Messages() {
-  const { user, profiles, messages, sendMessage, getConversations } = useApp();
+  const { user, profiles, messages, sendMessage, getConversations, markMessagesRead } = useApp();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [newMsg, setNewMsg] = useState('');
   const msgEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-open conversation when arriving with ?to=userId
+  useEffect(() => {
+    const toId = searchParams.get('to');
+    if (toId && profiles.some((p) => p.id === toId && p.id !== user?.id)) {
+      setSelectedPartner(toId);
+      // Clean the URL param so back button works naturally
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, profiles, user]);
 
   const conversations = getConversations();
 
@@ -26,6 +38,11 @@ export default function Messages() {
     msgEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [thread.length]);
 
+  // Mark messages as read when viewing a conversation
+  useEffect(() => {
+    if (selectedPartner) markMessagesRead(selectedPartner);
+  }, [selectedPartner, thread.length]);
+
   const handleSend = async () => {
     if (!newMsg.trim() || !selectedPartner) return;
     await sendMessage(selectedPartner, newMsg.trim());
@@ -37,7 +54,7 @@ export default function Messages() {
       <div className="flex flex-col h-[calc(100dvh-140px)]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <button className="btn btn-ghost btn-sm" onClick={() => setSelectedPartner(null)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setSelectedPartner(null)} aria-label="Back to conversations">
             <ArrowLeft size={16} />
           </button>
           <Avatar src={partner.photo_url} name={partner.first_name} size="sm" />
@@ -82,7 +99,7 @@ export default function Messages() {
             onChange={(e) => setNewMsg(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
           />
-          <button className="btn btn-primary" onClick={handleSend} disabled={!newMsg.trim()}>
+          <button className="btn btn-primary" onClick={handleSend} disabled={!newMsg.trim()} aria-label="Send message">
             <Send size={16} />
           </button>
         </div>
@@ -130,9 +147,19 @@ export default function Messages() {
                   {c.lastMessage.content}
                 </div>
               </div>
-              <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
-                {timeAgo(c.lastMessage.created_at)}
-              </span>
+              <div className="flex flex-col items-end gap-1">
+                <span className="text-[10px]" style={{ color: 'var(--color-text-faint)' }}>
+                  {timeAgo(c.lastMessage.created_at)}
+                </span>
+                {c.unreadCount > 0 && (
+                  <span
+                    className="min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1"
+                    style={{ background: 'var(--color-brand)' }}
+                  >
+                    {c.unreadCount}
+                  </span>
+                )}
+              </div>
             </button>
           ))}
         </div>

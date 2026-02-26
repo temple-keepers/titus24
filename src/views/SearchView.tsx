@@ -1,10 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
+import { supabase } from '@/lib/supabase';
 import { NavLink } from 'react-router-dom';
-import { Search as SearchIcon, FileText, User, Calendar, BookOpen, Heart } from 'lucide-react';
+import { Search as SearchIcon, FileText, User, Calendar, BookOpen, Heart, Sparkles } from 'lucide-react';
 import { truncate } from '@/lib/utils';
+import type { Testimony } from '@/types';
 
-type ResultType = 'post' | 'user' | 'event' | 'resource' | 'prayer';
+type ResultType = 'post' | 'user' | 'event' | 'resource' | 'prayer' | 'testimony';
 
 interface SearchResult {
   type: ResultType;
@@ -21,11 +23,19 @@ const typeIcons: Record<ResultType, typeof FileText> = {
   event: Calendar,
   resource: BookOpen,
   prayer: Heart,
+  testimony: Sparkles,
 };
 
 export default function SearchView() {
   const { posts, profiles, events, resources, prayerRequests, user } = useApp();
   const [query, setQuery] = useState('');
+  const [testimonies, setTestimonies] = useState<Testimony[]>([]);
+
+  useEffect(() => {
+    supabase.from('testimonies').select('*').then(({ data }) => {
+      if (data) setTestimonies(data);
+    });
+  }, []);
 
   const results = useMemo((): SearchResult[] => {
     const q = query.toLowerCase().trim();
@@ -44,9 +54,9 @@ export default function SearchView() {
     profiles.forEach((p) => {
       if (p.id === user?.id) return;
       const name = `${p.first_name} ${p.last_name ?? ''}`.toLowerCase();
-      const area = (p.area ?? '').toLowerCase();
-      if (name.includes(q) || area.includes(q)) {
-        res.push({ type: 'user', id: p.id, title: `${p.first_name} ${p.last_name ?? ''}`, subtitle: p.area ?? '', link: '/directory', image: p.photo_url });
+      const location = (p.city && p.country ? `${p.city}, ${p.country}` : p.area ?? '').toLowerCase();
+      if (name.includes(q) || location.includes(q)) {
+        res.push({ type: 'user', id: p.id, title: `${p.first_name} ${p.last_name ?? ''}`, subtitle: p.city && p.country ? `${p.city}, ${p.country}` : p.area ?? '', link: `/member/${p.id}`, image: p.photo_url });
       }
     });
 
@@ -71,8 +81,15 @@ export default function SearchView() {
       }
     });
 
+    // Testimonies
+    testimonies.forEach((t) => {
+      if (t.content.toLowerCase().includes(q) || t.category.toLowerCase().includes(q)) {
+        res.push({ type: 'testimony', id: t.id, title: `${t.category} Testimony`, subtitle: truncate(t.content, 80), link: '/prayer' });
+      }
+    });
+
     return res.slice(0, 20);
-  }, [query, posts, profiles, events, resources, prayerRequests, user]);
+  }, [query, posts, profiles, events, resources, prayerRequests, testimonies, user]);
 
   return (
     <div className="space-y-6">

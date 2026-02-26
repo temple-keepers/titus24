@@ -4,10 +4,15 @@ export interface Profile {
   first_name: string;
   last_name: string;
   email: string;
-  role: 'admin' | 'mentor' | 'lady';
+  role: 'admin' | 'elder' | 'member';
+  phone_number: string | null;
+  marital_status: 'single' | 'married' | 'divorced' | 'widowed' | null;
+  husband_name: string | null;
   wedding_anniversary: string | null;
   photo_url: string | null;
   area: string | null;
+  city: string | null;
+  country: string | null;
   about: string | null;
   prayer_focus: string | null;
   birthday: string | null;
@@ -52,7 +57,7 @@ export interface Comment {
   replies?: Comment[];
 }
 
-export type ReactionType = 'amen' | 'heart' | 'praying';
+export type ReactionType = 'amen' | 'heart' | 'praise' | 'strength' | 'fire';
 
 export interface Reaction {
   id: string;
@@ -131,6 +136,7 @@ export interface Attendance {
   event_id: string;
   user_id: string;
   date: string;
+  recorded_by?: string;
 }
 
 // ─── Bible Study ──────────────────────────────────────────────
@@ -200,6 +206,7 @@ export interface Message {
   sender_id: string;
   receiver_id: string;
   content: string;
+  read_at: string | null;
   created_at: string;
   sender?: Profile;
   receiver?: Profile;
@@ -240,7 +247,8 @@ export type NotificationType =
   | 'prayer_response'
   | 'badge_earned'
   | 'study_reminder'
-  | 'announcement';
+  | 'announcement'
+  | 'celebration';
 
 export interface Notification {
   id: string;
@@ -387,7 +395,7 @@ export interface LeaderboardEntry {
   profile?: Profile;
 }
 
-// ─── Mentoring ──────────────────────────────────────────────
+// ─── Eldership ──────────────────────────────────────────────
 export interface MentorAssignment {
   id: string;
   mentor_id: string;
@@ -408,6 +416,68 @@ export interface MentorRequest {
   created_at: string;
   mentee?: Profile;
   mentor?: Profile;
+}
+
+// ─── Pods (Accountability Groups) ────────────────────────────
+export interface Pod {
+  id: string;
+  name: string;
+  description: string | null;
+  max_members: number;
+  created_by: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PodMember {
+  id: string;
+  pod_id: string;
+  user_id: string;
+  role: 'leader' | 'member';
+  joined_at: string;
+}
+
+export interface PodCheckin {
+  id: string;
+  pod_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+// ─── Guide ──────────────────────────────────────────────────
+export type GuideSectionCategory = 'getting_started' | 'features' | 'faq';
+
+export interface GuideSection {
+  id: string;
+  title: string;
+  icon: string;
+  description: string;
+  content: string;
+  category: GuideSectionCategory;
+  display_order: number;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Email ────────────────────────────────────────────────────
+export type EmailAudience = 'all' | 'elders' | 'members' | 'individual';
+export type EmailStatus = 'sent' | 'failed' | 'partial';
+
+export interface EmailLog {
+  id: string;
+  sent_by: string;
+  recipient_emails: string[];
+  recipient_count: number;
+  audience: EmailAudience;
+  subject: string;
+  body: string;
+  status: EmailStatus;
+  resend_id: string | null;
+  error_message: string | null;
+  created_at: string;
 }
 
 // ─── Toast ────────────────────────────────────────────────────

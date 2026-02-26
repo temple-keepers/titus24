@@ -3,6 +3,7 @@ import { AppProvider, useApp } from '@/context/AppContext';
 import Layout from '@/components/Layout';
 import LoadingScreen from '@/components/LoadingScreen';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import RouteErrorBoundary from '@/components/RouteErrorBoundary';
 import Auth from '@/views/Auth';
 import Onboarding from '@/views/Onboarding';
 import Home from '@/views/Home';
@@ -20,10 +21,17 @@ import SearchView from '@/views/SearchView';
 import AdminDashboard from '@/views/AdminDashboard';
 import DailyDevotional from '@/views/DailyDevotional';
 import CheckIn from '@/views/CheckIn';
-import Testimonies from '@/views/Testimonies';
+// Testimonies merged into PrayerWall
 import AskElders from '@/views/AskElders';
 import PrayerPartners from '@/views/PrayerPartners';
 import Leaderboard from '@/views/Leaderboard';
+import Pods from '@/views/Pods';
+import MemberProfile from '@/views/MemberProfile';
+import Guide from '@/views/Guide';
+
+function withEB(el: React.ReactNode) {
+  return <RouteErrorBoundary>{el}</RouteErrorBoundary>;
+}
 
 function AppRoutes() {
   const { user, profile, authLoading, loading } = useApp();
@@ -34,33 +42,36 @@ function AppRoutes() {
   // Show loading while initial data fetches (no profile yet)
   if (!profile && loading) return <LoadingScreen />;
 
-  // Show onboarding if profile incomplete — only require area (photo is optional)
-  if (profile && !profile.area) {
+  // Show onboarding if profile incomplete — require city/country (photo is optional)
+  if (profile && !profile.area && !profile.city) {
     return <Onboarding />;
   }
 
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<Home />} />
-        <Route path="/community" element={<Community />} />
-        <Route path="/prayer" element={<PrayerWall />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/study" element={<BibleStudy />} />
-        <Route path="/gallery" element={<Gallery />} />
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/directory" element={<Directory />} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/search" element={<SearchView />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/check-in" element={<CheckIn />} />
-        <Route path="/devotional" element={<DailyDevotional />} />
-        <Route path="/testimonies" element={<Testimonies />} />
-        <Route path="/ask-elders" element={<AskElders />} />
-        <Route path="/prayer-partners" element={<PrayerPartners />} />
-        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/" element={withEB(<Home />)} />
+        <Route path="/community" element={withEB(<Community />)} />
+        <Route path="/prayer" element={withEB(<PrayerWall />)} />
+        <Route path="/events" element={withEB(<Events />)} />
+        <Route path="/study" element={withEB(<BibleStudy />)} />
+        <Route path="/gallery" element={withEB(<Gallery />)} />
+        <Route path="/messages" element={withEB(<Messages />)} />
+        <Route path="/directory" element={withEB(<Directory />)} />
+        <Route path="/resources" element={withEB(<Resources />)} />
+        <Route path="/profile" element={withEB(<Profile />)} />
+        <Route path="/notifications" element={withEB(<Notifications />)} />
+        <Route path="/search" element={withEB(<SearchView />)} />
+        <Route path="/admin" element={withEB(<AdminDashboard />)} />
+        <Route path="/check-in" element={withEB(<CheckIn />)} />
+        <Route path="/devotional" element={withEB(<DailyDevotional />)} />
+        <Route path="/testimonies" element={<Navigate to="/prayer" replace />} />
+        <Route path="/ask-elders" element={withEB(<AskElders />)} />
+        <Route path="/prayer-partners" element={withEB(<PrayerPartners />)} />
+        <Route path="/leaderboard" element={withEB(<Leaderboard />)} />
+        <Route path="/pods" element={withEB(<Pods />)} />
+        <Route path="/member/:userId" element={withEB(<MemberProfile />)} />
+        <Route path="/guide" element={withEB(<Guide />)} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

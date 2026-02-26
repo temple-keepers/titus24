@@ -132,8 +132,10 @@ export default function PrayerPartners() {
             <h2 className="font-display text-xl font-bold" style={{ color: 'var(--color-text)' }}>
               {partner.first_name} {partner.last_name}
             </h2>
-            {partner.area && (
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{partner.area}</p>
+            {(partner.city || partner.area) && (
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                {partner.city && partner.country ? `${partner.city}, ${partner.country}` : partner.area}
+              </p>
             )}
           </div>
 
@@ -162,11 +164,14 @@ export default function PrayerPartners() {
           <h2 className="font-bold text-base mb-2" style={{ color: 'var(--color-text)' }}>
             No Prayer Partner Yet
           </h2>
-          <p className="text-sm max-w-xs mx-auto" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="text-sm max-w-xs mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }}>
             Prayer partners are assigned weekly by your leaders. Check back soon!
           </p>
+          <NavLink to="/prayer" className="btn btn-sage btn-sm no-underline">
+            <Heart size={14} /> Visit the Prayer Wall
+          </NavLink>
           {profile?.role === 'admin' && (
-            <button className="btn btn-primary mt-5" onClick={shufflePartners}>
+            <button className="btn btn-primary mt-5 w-full max-w-[240px]" onClick={shufflePartners}>
               <RefreshCw size={18} /> Create First Partnerships
             </button>
           )}

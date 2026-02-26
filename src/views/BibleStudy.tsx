@@ -11,7 +11,7 @@ export default function BibleStudy() {
   } = useApp();
 
   const [selectedStudy, setSelectedStudy] = useState<string | null>(null);
-  const [reflection, setReflection] = useState('');
+  const [reflections, setReflections] = useState<Record<number, string>>({});
 
   const study = selectedStudy ? bibleStudies.find((s) => s.id === selectedStudy) : null;
   const days = selectedStudy ? studyDays.filter((d) => d.study_id === selectedStudy) : [];
@@ -74,15 +74,15 @@ export default function BibleStudy() {
                         <textarea
                           className="input text-sm"
                           placeholder="Your reflection…"
-                          value={reflection}
-                          onChange={(e) => setReflection(e.target.value)}
+                          value={reflections[day.day_number] || ''}
+                          onChange={(e) => setReflections(prev => ({ ...prev, [day.day_number]: e.target.value }))}
                           rows={2}
                         />
                         <button
                           className="btn btn-primary btn-sm"
                           onClick={async () => {
-                            await completeStudyDay(selectedStudy, day.day_number, reflection || undefined);
-                            setReflection('');
+                            await completeStudyDay(selectedStudy, day.day_number, reflections[day.day_number] || undefined);
+                            setReflections(prev => { const next = { ...prev }; delete next[day.day_number]; return next; });
                           }}
                         >
                           <Check size={14} /> Complete Day

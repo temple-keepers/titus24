@@ -15,9 +15,15 @@ import type {
   Badge, UserBadge,
   FollowUpNote, FollowUpStatus,
   DailyDevotional,
+  Pod, PodMember, PodCheckin,
+  GuideSection,
   Toast, ToastType,
 } from '@/types';
+import { defaultGuideSections } from '@/lib/defaultGuide';
+import { validateTextField, validateUrl, sanitizeText, checkRateLimit, MAX_LENGTHS } from '@/lib/validation';
 import type { Session, User } from '@supabase/supabase-js';
+
+const PAGE_SIZE = 20;
 
 // ─── Context Types ────────────────────────────────────────────
 interface AppState {
@@ -51,6 +57,10 @@ interface AppState {
   badges: Badge[];
   userBadges: UserBadge[];
   followUpNotes: FollowUpNote[];
+  pods: Pod[];
+  podMembers: PodMember[];
+  podCheckins: PodCheckin[];
+  guideSections: GuideSection[];
 
   // Toast
   toasts: Toast[];
@@ -65,10 +75,10 @@ interface AppState {
   // Profile
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string>;
-  updateUserRole: (userId: string, newRole: 'admin' | 'mentor' | 'lady') => Promise<void>;
+  updateUserRole: (userId: string, newRole: 'admin' | 'elder' | 'member') => Promise<void>;
 
   // Posts
-  addPost: (content: string, imageFile?: File) => Promise<void>;
+  addPost: (content: string, imageFile?: File) => Promise<Post | undefined>;
   deletePost: (postId: string) => Promise<void>;
   togglePin: (postId: string, pinned: boolean) => Promise<void>;
   toggleReaction: (postId: string, type: ReactionType) => Promise<void>;
@@ -83,6 +93,7 @@ interface AppState {
 
   // Events
   addEvent: (data: Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>) => Promise<void>;
+  updateEvent: (id: string, data: Partial<Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
   rsvpEvent: (eventId: string, status: RSVPStatus) => Promise<void>;
   setEventReminder: (eventId: string, offsetHours: number) => Promise<void>;
@@ -103,6 +114,8 @@ interface AppState {
   // Messages
   sendMessage: (receiverId: string, content: string) => Promise<void>;
   getConversations: () => Conversation[];
+  markMessagesRead: (senderId: string) => Promise<void>;
+  unreadMessageCount: number;
 
   // Resources
   addResource: (data: Omit<Resource, 'id' | 'created_by' | 'created_at'>) => Promise<void>;
@@ -121,6 +134,26 @@ interface AppState {
 
   // Follow-up (admin)
   addFollowUpNote: (userId: string, note: string, status: FollowUpStatus) => Promise<void>;
+
+  // Pods
+  addPod: (name: string, description: string | null, maxMembers: number) => Promise<void>;
+  deletePod: (podId: string) => Promise<void>;
+  addPodMember: (podId: string, userId: string, role?: 'leader' | 'member') => Promise<void>;
+  removePodMember: (podId: string, userId: string) => Promise<void>;
+  addPodCheckin: (podId: string, content: string) => Promise<void>;
+
+  // Guide
+  addGuideSection: (data: Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => Promise<void>;
+  updateGuideSection: (id: string, data: Partial<Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>>) => Promise<void>;
+  deleteGuideSection: (id: string) => Promise<void>;
+
+  // Pagination
+  loadMorePosts: () => Promise<void>;
+  hasMorePosts: boolean;
+  loadingMorePosts: boolean;
+  loadMorePrayers: () => Promise<void>;
+  hasMorePrayers: boolean;
+  loadingMorePrayers: boolean;
 
   // Refetch
   refetchAll: () => Promise<void>;
@@ -165,6 +198,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [userBadges, setUserBadges] = useState<UserBadge[]>([]);
   const [followUpNotes, setFollowUpNotes] = useState<FollowUpNote[]>([]);
+  const [pods, setPods] = useState<Pod[]>([]);
+  const [podMembers, setPodMembers] = useState<PodMember[]>([]);
+  const [podCheckins, setPodCheckins] = useState<PodCheckin[]>([]);
+  const [guideSections, setGuideSections] = useState<GuideSection[]>([]);
+
+  // Pagination state
+  const [hasMorePosts, setHasMorePosts] = useState(true);
+  const [hasMorePrayers, setHasMorePrayers] = useState(true);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  const [loadingMorePrayers, setLoadingMorePrayers] = useState(false);
 
   const { toasts, addToast, removeToast } = useToast();
   const channelRef = useRef<any>(null);
@@ -194,12 +237,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const [profilesRes, postsRes, notificationsRes] = await Promise.all([
         supabase.from('profiles').select('*'),
-        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
       ]);
 
       if (profilesRes.data) setProfiles(profilesRes.data);
-      if (postsRes.data) setPosts(postsRes.data);
+      if (postsRes.data) {
+        setPosts(postsRes.data);
+        setHasMorePosts(postsRes.data.length === PAGE_SIZE);
+      }
       if (notificationsRes.data) setNotifications(notificationsRes.data);
 
       const me = profilesRes.data?.find((p: Profile) => p.id === user.id);
@@ -227,10 +273,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
     bgFetch('prayers', async () => {
       const [reqRes, respRes] = await Promise.all([
-        supabase.from('prayer_requests').select('*').order('created_at', { ascending: false }),
+        supabase.from('prayer_requests').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE),
         supabase.from('prayer_responses').select('*'),
       ]);
-      if (reqRes.data) setPrayerRequests(reqRes.data);
+      if (reqRes.data) {
+        setPrayerRequests(reqRes.data);
+        setHasMorePrayers(reqRes.data.length === PAGE_SIZE);
+      }
       if (respRes.data) setPrayerResponses(respRes.data);
     });
     bgFetch('events', async () => {
@@ -287,6 +336,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const { data } = await supabase.from('follow_up_notes').select('*').order('created_at', { ascending: false });
       if (data) setFollowUpNotes(data);
     });
+    bgFetch('pods', async () => {
+      const [pRes, mRes, cRes] = await Promise.all([
+        supabase.from('pods').select('*').order('created_at', { ascending: false }),
+        supabase.from('pod_members').select('*'),
+        supabase.from('pod_checkins').select('*').order('created_at', { ascending: false }).limit(100),
+      ]);
+      if (pRes.data) setPods(pRes.data);
+      if (mRes.data) setPodMembers(mRes.data);
+      if (cRes.data) setPodCheckins(cRes.data);
+    });
+    bgFetch('guide', async () => {
+      const { data } = await supabase.from('guide_sections').select('*').order('display_order', { ascending: true });
+      if (data && data.length > 0) {
+        // Merge: per category, if DB has sections use DB; otherwise use defaults
+        const dbCategories = new Set(data.map((s: GuideSection) => s.category));
+        const merged = [
+          ...data,
+          ...defaultGuideSections
+            .filter(d => !dbCategories.has(d.category))
+            .map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection),
+        ];
+        setGuideSections(merged);
+      } else {
+        setGuideSections(defaultGuideSections.map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection));
+      }
+    });
   }, [user, addToast]);
 
   useEffect(() => {
@@ -317,8 +392,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const channel = supabase
       .channel('app-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, () => {
-        supabase.from('posts').select('*').order('created_at', { ascending: false }).then(({ data }) => data && setPosts(data));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newPost = payload.new as Post;
+          setPosts(prev => prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setPosts(prev => prev.map(p => p.id === (payload.new as Post).id ? payload.new as Post : p));
+        } else if (payload.eventType === 'DELETE') {
+          setPosts(prev => prev.filter(p => p.id !== (payload.old as any).id));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'comments' }, () => {
         supabase.from('comments').select('*').order('created_at', { ascending: true }).then(({ data }) => data && setComments(data));
@@ -329,8 +411,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         supabase.from('messages').select('*').or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`).order('created_at', { ascending: true }).then(({ data }) => data && setMessages(data));
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'prayer_requests' }, () => {
-        supabase.from('prayer_requests').select('*').order('created_at', { ascending: false }).then(({ data }) => data && setPrayerRequests(data));
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prayer_requests' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          const newReq = payload.new as PrayerRequest;
+          setPrayerRequests(prev => prev.some(p => p.id === newReq.id) ? prev : [newReq, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setPrayerRequests(prev => prev.map(p => p.id === (payload.new as PrayerRequest).id ? payload.new as PrayerRequest : p));
+        } else if (payload.eventType === 'DELETE') {
+          setPrayerRequests(prev => prev.filter(p => p.id !== (payload.old as any).id));
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prayer_responses' }, () => {
         supabase.from('prayer_responses').select('*').then(({ data }) => data && setPrayerResponses(data));
@@ -351,6 +440,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_badges' }, () => {
         supabase.from('user_badges').select('*').eq('user_id', user.id).then(({ data }) => data && setUserBadges(data));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pods' }, () => {
+        supabase.from('pods').select('*').order('created_at', { ascending: false }).then(({ data }) => data && setPods(data));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pod_members' }, () => {
+        supabase.from('pod_members').select('*').then(({ data }) => data && setPodMembers(data));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pod_checkins' }, () => {
+        supabase.from('pod_checkins').select('*').order('created_at', { ascending: false }).limit(100).then(({ data }) => data && setPodCheckins(data));
       })
       .subscribe();
 
@@ -434,6 +532,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Profile Actions ─────────────────────────────────────
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
     if (!user) return;
+    // Validate text fields if present
+    if (updates.first_name !== undefined) {
+      const v = validateTextField(updates.first_name || '', MAX_LENGTHS.PROFILE_NAME, 'First name');
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
+    if (updates.last_name !== undefined) {
+      const v = validateTextField(updates.last_name || '', MAX_LENGTHS.PROFILE_NAME, 'Last name', false);
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
+    if (updates.about !== undefined) {
+      const v = validateTextField(updates.about || '', MAX_LENGTHS.PROFILE_ABOUT, 'About', false);
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
+    if (updates.prayer_focus !== undefined) {
+      const v = validateTextField(updates.prayer_focus || '', MAX_LENGTHS.PROFILE_PRAYER_FOCUS, 'Prayer focus', false);
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
     const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
     if (error) throw error;
     setProfile((prev) => prev ? { ...prev, ...updates } : prev);
@@ -453,14 +568,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return data.publicUrl;
   }, [user]);
 
-  const updateUserRole = useCallback(async (userId: string, newRole: 'admin' | 'mentor' | 'lady') => {
+  const updateUserRole = useCallback(async (userId: string, newRole: 'admin' | 'elder' | 'member') => {
     if (!user) return;
-    const { error } = await supabase
+    const { error, data } = await supabase
       .from('profiles')
       .update({ role: newRole })
-      .eq('id', userId);
+      .eq('id', userId)
+      .select();
 
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error('Permission denied — only admins can change roles');
 
     // Update profiles list
     setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, role: newRole } : p));
@@ -468,8 +585,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user, addToast]);
 
   // ─── Post Actions ─────────────────────────────────────────
-  const addPost = useCallback(async (content: string, imageFile?: File) => {
+  const addPost = useCallback(async (content: string, imageFile?: File): Promise<Post | undefined> => {
     if (!user) return;
+    const v = validateTextField(content, MAX_LENGTHS.POST_CONTENT, 'Post');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('addPost', 5000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
+    const sanitized = sanitizeText(content);
+
     let image_url: string | null = null;
     if (imageFile) {
       const blob = await optimisePostImage(imageFile);
@@ -481,12 +604,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     const { data: newPost, error } = await supabase.from('posts').insert({
-      author_id: user.id, content, image_url,
+      author_id: user.id, content: sanitized, image_url,
     }).select().single();
     if (error) throw error;
     if (newPost) setPosts((prev) => [newPost, ...prev]);
     addToast('success', 'Post shared');
     checkBadges();
+    return newPost ?? undefined;
   }, [user, addToast, checkBadges]);
 
   const deletePost = useCallback(async (postId: string) => {
@@ -523,8 +647,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addComment = useCallback(async (postId: string, content: string, parentId?: string) => {
     if (!user) return;
+    const v = validateTextField(content, MAX_LENGTHS.COMMENT_CONTENT, 'Comment');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('addComment', 2000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
+    const sanitized = sanitizeText(content);
+
     const { data: newComment, error } = await supabase.from('comments').insert({
-      post_id: postId, author_id: user.id, content, parent_id: parentId ?? null,
+      post_id: postId, author_id: user.id, content: sanitized, parent_id: parentId ?? null,
     }).select().single();
     if (error) throw error;
     if (newComment) setComments((prev) => [...prev, newComment]);
@@ -556,8 +686,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Prayer Actions ───────────────────────────────────────
   const addPrayerRequest = useCallback(async (content: string, category: PrayerCategory, isAnonymous: boolean) => {
     if (!user) return;
+    const v = validateTextField(content, MAX_LENGTHS.PRAYER_CONTENT, 'Prayer request');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('addPrayerRequest', 5000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
+    const sanitized = sanitizeText(content);
+
     const { data: newReq, error } = await supabase.from('prayer_requests').insert({
-      author_id: user.id, content, category, is_anonymous: isAnonymous,
+      author_id: user.id, content: sanitized, category, is_anonymous: isAnonymous,
     }).select().single();
     if (error) throw error;
     if (newReq) setPrayerRequests((prev) => [newReq, ...prev]);
@@ -583,13 +719,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const togglePrayerResponse = useCallback(async (requestId: string, encouragement?: string) => {
     if (!user) return;
+    if (encouragement) {
+      const v = validateTextField(encouragement, MAX_LENGTHS.ENCOURAGEMENT, 'Encouragement', false);
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
     const existing = prayerResponses.find((r) => r.prayer_request_id === requestId && r.user_id === user.id);
     if (existing) {
       await supabase.from('prayer_responses').delete().eq('id', existing.id);
       setPrayerResponses((prev) => prev.filter((r) => r.id !== existing.id));
     } else {
       const { data: newResp } = await supabase.from('prayer_responses').insert({
-        prayer_request_id: requestId, user_id: user.id, content: encouragement ?? null,
+        prayer_request_id: requestId, user_id: user.id, content: encouragement ? sanitizeText(encouragement) : null,
       }).select().single();
       if (newResp) setPrayerResponses((prev) => [...prev, newResp]);
       const req = prayerRequests.find((p) => p.id === requestId);
@@ -604,6 +744,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Event Actions ────────────────────────────────────────
   const addEvent = useCallback(async (data: Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>) => {
     if (!user) return;
+    const checks = [
+      validateTextField(data.title, MAX_LENGTHS.EVENT_TITLE, 'Event title'),
+      validateTextField(data.description || '', MAX_LENGTHS.EVENT_DESCRIPTION, 'Event description', false),
+      validateTextField(data.location || '', MAX_LENGTHS.EVENT_LOCATION, 'Location', false),
+    ];
+    const fail = checks.find(c => !c.valid);
+    if (fail) { addToast('error', fail.error!); return; }
+
     const { data: newEvent, error } = await supabase.from('events').insert({ ...data, created_by: user.id }).select().single();
     if (error) throw error;
     if (newEvent) setEvents((prev) => [...prev, newEvent].sort((a, b) => a.date.localeCompare(b.date)));
@@ -616,6 +764,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await supabase.from('attendance').delete().eq('event_id', id);
     await supabase.from('events').delete().eq('id', id);
   }, []);
+
+  const updateEvent = useCallback(async (id: string, data: Partial<Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>>) => {
+    const { error } = await supabase.from('events').update(data).eq('id', id);
+    if (error) throw error;
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, ...data } : e));
+    addToast('success', 'Event updated');
+  }, [addToast]);
 
   const rsvpEvent = useCallback(async (eventId: string, status: RSVPStatus) => {
     if (!user) return;
@@ -643,21 +798,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const recordAttendance = useCallback(async (eventId: string, userIds: string[]) => {
+    if (!user) return;
     const date = new Date().toISOString().split('T')[0];
-    const rows = userIds.map((uid) => ({ event_id: eventId, user_id: uid, date }));
+    const rows = userIds.map((uid) => ({ event_id: eventId, user_id: uid, date, recorded_by: user.id }));
     await supabase.from('attendance').upsert(rows, { onConflict: 'event_id,user_id' });
     // Update last_attended for each user
     for (const uid of userIds) {
       await supabase.from('profiles').update({ last_attended: date }).eq('id', uid);
     }
     addToast('success', 'Attendance recorded');
-  }, [addToast]);
+  }, [user, addToast]);
 
   // ─── Bible Study Actions ──────────────────────────────────
   const addBibleStudy = useCallback(async (data: { title: string; description: string; totalDays: number; days: Omit<StudyDay, 'id' | 'study_id'>[] }) => {
     if (!user) return;
+    const checks = [
+      validateTextField(data.title, MAX_LENGTHS.STUDY_TITLE, 'Study title'),
+      validateTextField(data.description, MAX_LENGTHS.STUDY_DESCRIPTION, 'Study description'),
+    ];
+    const fail = checks.find(c => !c.valid);
+    if (fail) { addToast('error', fail.error!); return; }
+
     const { data: study, error } = await supabase.from('bible_studies').insert({
-      title: data.title, description: data.description, total_days: data.totalDays, created_by: user.id,
+      title: sanitizeText(data.title), description: sanitizeText(data.description), total_days: data.totalDays, created_by: user.id,
     }).select().single();
     if (error || !study) throw error ?? new Error('Failed to create study');
 
@@ -691,14 +854,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Gallery Actions ──────────────────────────────────────
   const addAlbum = useCallback(async (title: string, description?: string, eventId?: string) => {
     if (!user) return;
+    const v = validateTextField(title, MAX_LENGTHS.ALBUM_TITLE, 'Album title');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    if (description) {
+      const dv = validateTextField(description, MAX_LENGTHS.ALBUM_DESCRIPTION, 'Album description', false);
+      if (!dv.valid) { addToast('error', dv.error!); return; }
+    }
+
     await supabase.from('gallery_albums').insert({
-      title, description: description ?? null, event_id: eventId ?? null, created_by: user.id,
+      title: sanitizeText(title), description: description ? sanitizeText(description) : null, event_id: eventId ?? null, created_by: user.id,
     });
     addToast('success', 'Album created');
   }, [user, addToast]);
 
   const uploadPhoto = useCallback(async (albumId: string, file: File, caption?: string) => {
     if (!user) return;
+    if (caption) {
+      const v = validateTextField(caption, MAX_LENGTHS.PHOTO_CAPTION, 'Caption', false);
+      if (!v.valid) { addToast('error', v.error!); return; }
+    }
     const blob = await optimiseGalleryImage(file);
     const path = `${albumId}/${Date.now()}.jpg`;
     const { error: upErr } = await supabase.storage.from('gallery').upload(path, blob, { contentType: 'image/jpeg' });
@@ -717,7 +891,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Message Actions ──────────────────────────────────────
   const sendMessage = useCallback(async (receiverId: string, content: string) => {
     if (!user) return;
-    const { data: newMsg } = await supabase.from('messages').insert({ sender_id: user.id, receiver_id: receiverId, content }).select().single();
+    const v = validateTextField(content, MAX_LENGTHS.MESSAGE_CONTENT, 'Message');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('sendMessage', 1000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
+    const sanitized = sanitizeText(content);
+
+    const { data: newMsg } = await supabase.from('messages').insert({ sender_id: user.id, receiver_id: receiverId, content: sanitized }).select().single();
     if (newMsg) setMessages((prev) => [...prev, newMsg]);
     const name = profile?.first_name ?? 'Someone';
     await createNotification(receiverId, 'message', `New message from ${name}`, content.slice(0, 100), `/messages`);
@@ -738,15 +918,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const partner = profiles.find((p) => p.id === partnerId);
         if (!partner) return null;
         const lastMessage = msgs[msgs.length - 1];
-        return { partnerId, partner, lastMessage, unreadCount: 0 };
+        const unreadCount = msgs.filter((m) => m.sender_id !== user.id && !m.read_at).length;
+        return { partnerId, partner, lastMessage, unreadCount };
       })
       .filter(Boolean)
       .sort((a, b) => new Date(b!.lastMessage.created_at).getTime() - new Date(a!.lastMessage.created_at).getTime()) as Conversation[];
   }, [user, messages, profiles]);
 
+  const markMessagesRead = useCallback(async (senderId: string) => {
+    if (!user) return;
+    const unread = messages.filter((m) => m.sender_id === senderId && m.receiver_id === user.id && !m.read_at);
+    if (unread.length === 0) return;
+    const ids = unread.map((m) => m.id);
+    const now = new Date().toISOString();
+    await supabase.from('messages').update({ read_at: now }).in('id', ids);
+    setMessages((prev) => prev.map((m) => ids.includes(m.id) ? { ...m, read_at: now } : m));
+  }, [user, messages]);
+
+  const unreadMessageCount = user
+    ? messages.filter((m) => m.receiver_id === user.id && !m.read_at).length
+    : 0;
+
+  // ─── Pagination ─────────────────────────────────────────────
+  const loadMorePosts = useCallback(async () => {
+    if (loadingMorePosts || !hasMorePosts || posts.length === 0) return;
+    setLoadingMorePosts(true);
+    try {
+      const oldest = posts[posts.length - 1];
+      const { data } = await supabase
+        .from('posts')
+        .select('*')
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+      if (data) {
+        setPosts(prev => [...prev, ...data]);
+        setHasMorePosts(data.length === PAGE_SIZE);
+      }
+    } finally {
+      setLoadingMorePosts(false);
+    }
+  }, [loadingMorePosts, hasMorePosts, posts]);
+
+  const loadMorePrayers = useCallback(async () => {
+    if (loadingMorePrayers || !hasMorePrayers || prayerRequests.length === 0) return;
+    setLoadingMorePrayers(true);
+    try {
+      const oldest = prayerRequests[prayerRequests.length - 1];
+      const { data } = await supabase
+        .from('prayer_requests')
+        .select('*')
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+      if (data) {
+        setPrayerRequests(prev => [...prev, ...data]);
+        setHasMorePrayers(data.length === PAGE_SIZE);
+      }
+    } finally {
+      setLoadingMorePrayers(false);
+    }
+  }, [loadingMorePrayers, hasMorePrayers, prayerRequests]);
+
   // ─── Resource Actions ─────────────────────────────────────
   const addResource = useCallback(async (data: Omit<Resource, 'id' | 'created_by' | 'created_at'>) => {
     if (!user) return;
+    const checks = [
+      validateTextField(data.title, MAX_LENGTHS.RESOURCE_TITLE, 'Resource title'),
+      validateTextField(data.description || '', MAX_LENGTHS.RESOURCE_DESCRIPTION, 'Description', false),
+    ];
+    if (data.link) {
+      checks.push(validateTextField(data.link, MAX_LENGTHS.RESOURCE_LINK, 'Link'));
+      checks.push(validateUrl(data.link, 'Resource link'));
+    }
+    const fail = checks.find(c => !c.valid);
+    if (fail) { addToast('error', fail.error!); return; }
+
     const { data: newRes } = await supabase.from('resources').insert({ ...data, created_by: user.id }).select().single();
     if (newRes) setResources((prev) => [newRes, ...prev]);
     addToast('success', 'Resource added');
@@ -760,7 +1007,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Daily Devotional Actions ─────────────────────────────────────
   const addDevotional = useCallback(async (data: Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
     if (!user) return;
-    console.log('🔍 Attempting to insert devotional:', { ...data, created_by: user.id });
+    const checks = [
+      validateTextField(data.theme || '', MAX_LENGTHS.DEVOTIONAL_THEME, 'Theme', false),
+      validateTextField(data.scripture_text || '', MAX_LENGTHS.DEVOTIONAL_TEXT, 'Scripture text', false),
+      validateTextField(data.reflection || '', MAX_LENGTHS.DEVOTIONAL_REFLECTION, 'Reflection', false),
+      validateTextField(data.affirmation || '', MAX_LENGTHS.DEVOTIONAL_AFFIRMATION, 'Affirmation', false),
+      validateTextField(data.prayer || '', MAX_LENGTHS.DEVOTIONAL_PRAYER, 'Prayer', false),
+    ];
+    const fail = checks.find(c => !c.valid);
+    if (fail) { addToast('error', fail.error!); return; }
+
     const { data: newDev, error } = await supabase.from('daily_devotionals').insert({ ...data, created_by: user.id }).select().single();
     if (error) {
       console.error('❌ Devotional insert error:', error);
@@ -805,12 +1061,120 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ─── Follow-Up Notes ──────────────────────────────────────
   const addFollowUpNote = useCallback(async (userId: string, note: string, status: FollowUpStatus) => {
     if (!user) return;
+    const v = validateTextField(note, MAX_LENGTHS.FOLLOW_UP_NOTE, 'Note');
+    if (!v.valid) { addToast('error', v.error!); return; }
+
     const { data: newNote } = await supabase.from('follow_up_notes').insert({
-      user_id: userId, leader_id: user.id, note, status,
+      user_id: userId, leader_id: user.id, note: sanitizeText(note), status,
     }).select().single();
     if (newNote) setFollowUpNotes((prev) => [newNote, ...prev]);
     addToast('success', 'Note saved');
   }, [user, addToast]);
+
+  // ─── Pod Actions ────────────────────────────────────────
+  const addPod = useCallback(async (name: string, description: string | null, maxMembers: number) => {
+    if (!user) return;
+    const v = validateTextField(name, MAX_LENGTHS.POD_NAME, 'Pod name');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    if (description) {
+      const dv = validateTextField(description, MAX_LENGTHS.POD_DESCRIPTION, 'Pod description', false);
+      if (!dv.valid) { addToast('error', dv.error!); return; }
+    }
+
+    const { data: newPod, error } = await supabase.from('pods').insert({
+      name: sanitizeText(name), description: description ? sanitizeText(description) : null, max_members: maxMembers, created_by: user.id,
+    }).select().single();
+    if (error) throw error;
+    if (newPod) setPods((prev) => [newPod, ...prev]);
+    addToast('success', 'Pod created');
+  }, [user, addToast]);
+
+  const deletePod = useCallback(async (podId: string) => {
+    await supabase.from('pod_checkins').delete().eq('pod_id', podId);
+    await supabase.from('pod_members').delete().eq('pod_id', podId);
+    await supabase.from('pods').delete().eq('id', podId);
+    setPods((prev) => prev.filter((p) => p.id !== podId));
+    setPodMembers((prev) => prev.filter((m) => m.pod_id !== podId));
+    setPodCheckins((prev) => prev.filter((c) => c.pod_id !== podId));
+    addToast('success', 'Pod deleted');
+  }, [addToast]);
+
+  const addPodMember = useCallback(async (podId: string, userId: string, role: 'leader' | 'member' = 'member') => {
+    const { data: newMember, error } = await supabase.from('pod_members').insert({
+      pod_id: podId, user_id: userId, role,
+    }).select().single();
+    if (error) throw error;
+    if (newMember) setPodMembers((prev) => [...prev, newMember]);
+  }, []);
+
+  const removePodMember = useCallback(async (podId: string, userId: string) => {
+    await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', userId);
+    setPodMembers((prev) => prev.filter((m) => !(m.pod_id === podId && m.user_id === userId)));
+  }, []);
+
+  const addPodCheckin = useCallback(async (podId: string, content: string) => {
+    if (!user) return;
+    const v = validateTextField(content, MAX_LENGTHS.POD_CHECKIN, 'Check-in');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('addPodCheckin', 2000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
+
+    const { data: newCheckin, error } = await supabase.from('pod_checkins').insert({
+      pod_id: podId, user_id: user.id, content: sanitizeText(content),
+    }).select().single();
+    if (error) throw error;
+    if (newCheckin) setPodCheckins((prev) => [newCheckin, ...prev]);
+    addToast('success', 'Check-in posted');
+  }, [user, addToast]);
+
+  // ─── Guide Actions ──────────────────────────────────────
+  const addGuideSection = useCallback(async (data: Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
+    if (!user) return;
+    const checks = [
+      validateTextField(data.title, MAX_LENGTHS.GUIDE_TITLE, 'Guide title'),
+      validateTextField(data.content, MAX_LENGTHS.GUIDE_CONTENT, 'Guide content'),
+    ];
+    const fail = checks.find(c => !c.valid);
+    if (fail) { addToast('error', fail.error!); return; }
+
+    const { data: newSection, error } = await supabase.from('guide_sections').insert({ ...data, created_by: user.id }).select().single();
+    if (error) throw error;
+    if (newSection) {
+      // Refetch to re-merge with defaults
+      const { data: all } = await supabase.from('guide_sections').select('*').order('display_order', { ascending: true });
+      if (all && all.length > 0) {
+        const dbCategories = new Set(all.map((s: GuideSection) => s.category));
+        setGuideSections([
+          ...all,
+          ...defaultGuideSections.filter(d => !dbCategories.has(d.category)).map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection),
+        ]);
+      }
+    }
+    addToast('success', 'Guide section added');
+  }, [user, addToast]);
+
+  const updateGuideSection = useCallback(async (id: string, data: Partial<Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>>) => {
+    const { data: updated, error } = await supabase.from('guide_sections').update(data).eq('id', id).select().single();
+    if (error) throw error;
+    if (updated) setGuideSections(prev => prev.map(s => s.id === id ? updated : s));
+    addToast('success', 'Guide section updated');
+  }, [addToast]);
+
+  const deleteGuideSection = useCallback(async (id: string) => {
+    await supabase.from('guide_sections').delete().eq('id', id);
+    // Refetch to re-merge with defaults
+    const { data: all } = await supabase.from('guide_sections').select('*').order('display_order', { ascending: true });
+    if (all && all.length > 0) {
+      const dbCategories = new Set(all.map((s: GuideSection) => s.category));
+      setGuideSections([
+        ...all,
+        ...defaultGuideSections.filter(d => !dbCategories.has(d.category)).map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection),
+      ]);
+    } else {
+      setGuideSections(defaultGuideSections.map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection));
+    }
+    addToast('success', 'Guide section deleted');
+  }, [addToast]);
 
   // ─── Context Value ────────────────────────────────────────
   const value: AppState = {
@@ -822,19 +1186,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     galleryAlbums, galleryPhotos,
     messages, resources, dailyDevotionals, notifications,
     badges, userBadges, followUpNotes,
+    pods, podMembers, podCheckins, guideSections,
     toasts, addToast, removeToast,
     signIn, signUp, signOut,
     updateProfile, uploadAvatar, updateUserRole,
     addPost, deletePost, togglePin, toggleReaction, addComment, deleteComment,
     addPrayerRequest, deletePrayerRequest, markPrayerAnswered, togglePrayerResponse,
-    addEvent, deleteEvent, rsvpEvent, setEventReminder, removeEventReminder, recordAttendance,
+    addEvent, updateEvent, deleteEvent, rsvpEvent, setEventReminder, removeEventReminder, recordAttendance,
     addBibleStudy, enrollInStudy, unenrolFromStudy, completeStudyDay,
     addAlbum, uploadPhoto, deletePhoto,
-    sendMessage, getConversations,
+    sendMessage, getConversations, markMessagesRead, unreadMessageCount,
     addResource, deleteResource,
     addDevotional, updateDevotional, deleteDevotional,
     markNotificationRead, markAllNotificationsRead, deleteNotification, unreadNotificationCount,
     addFollowUpNote,
+    addPod, deletePod, addPodMember, removePodMember, addPodCheckin,
+    addGuideSection, updateGuideSection, deleteGuideSection,
+    loadMorePosts, hasMorePosts, loadingMorePosts,
+    loadMorePrayers, hasMorePrayers, loadingMorePrayers,
     refetchAll: fetchAllData,
   };
 

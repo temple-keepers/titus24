@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
 import Avatar from '@/components/Avatar';
+import { SkeletonList } from '@/components/Skeleton';
 import { timeAgo } from '@/lib/utils';
 import { HelpCircle, Send, Plus, MessageSquare, CheckCircle } from 'lucide-react';
+import { validateTextField, sanitizeText, checkRateLimit, MAX_LENGTHS } from '@/lib/validation';
 import type { ElderQuestion } from '@/types';
 
 const questionCategories = ['Relationships', 'Marriage', 'Faith', 'Purity', 'Boundaries', 'Family', 'Healing', 'General'];
@@ -16,8 +18,9 @@ export default function AskElders() {
   const [category, setCategory] = useState('General');
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'all' | 'answered' | 'unanswered'>('all');
+  const [loading, setLoading] = useState(true);
 
-  // Leader answer state
+  // Elder answer state
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState('');
   const [answerSaving, setAnswerSaving] = useState(false);
@@ -25,16 +28,21 @@ export default function AskElders() {
   const fetchQuestions = async () => {
     const { data } = await supabase.from('elder_questions').select('*').order('created_at', { ascending: false });
     if (data) setQuestions(data);
+    setLoading(false);
   };
 
   useEffect(() => { fetchQuestions(); }, []);
 
   const handleSubmit = async () => {
     if (!user || !questionText.trim()) return;
+    const v = validateTextField(questionText, MAX_LENGTHS.ELDER_QUESTION, 'Question');
+    if (!v.valid) { addToast('error', v.error!); return; }
+    const rl = checkRateLimit('elderQuestion', 5000);
+    if (!rl.valid) { addToast('error', rl.error!); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase.from('elder_questions').insert({
-        author_id: user.id, question: questionText.trim(), category,
+        author_id: user.id, question: sanitizeText(questionText), category,
       }).select().single();
       if (error) throw error;
       if (data) setQuestions(prev => [data, ...prev]);
@@ -52,11 +60,13 @@ export default function AskElders() {
 
   const handleAnswer = async (questionId: string) => {
     if (!user || !answerText.trim()) return;
+    const v = validateTextField(answerText, MAX_LENGTHS.ELDER_ANSWER, 'Answer');
+    if (!v.valid) { addToast('error', v.error!); return; }
     setAnswerSaving(true);
     try {
       const now = new Date().toISOString();
       const { error } = await supabase.from('elder_questions').update({
-        is_answered: true, answer: answerText.trim(), answered_by: user.id, answered_at: now,
+        is_answered: true, answer: sanitizeText(answerText), answered_by: user.id, answered_at: now,
       }).eq('id', questionId);
 
       if (error) throw error;
@@ -87,7 +97,7 @@ export default function AskElders() {
         <div>
           <h1 className="font-display text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Ask the Elders</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Submit questions anonymously. Leaders answer publicly.
+            Submit questions anonymously. Elders answer publicly.
           </p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>
@@ -99,7 +109,7 @@ export default function AskElders() {
       <div className="card flex items-start gap-3" style={{ background: 'var(--color-sage-soft)', borderColor: 'rgba(130,168,130,0.2)' }}>
         <HelpCircle size={18} style={{ color: 'var(--color-sage)', flexShrink: 0, marginTop: 2 }} />
         <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-          Your identity is kept completely private. Only your question and category are visible. Leaders can see and answer questions.
+          Your identity is kept completely private. Only your question and category are visible. Elders can see and answer questions.
         </p>
       </div>
 
@@ -140,7 +150,9 @@ export default function AskElders() {
       </div>
 
       {/* Questions */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <SkeletonList count={3} />
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12">
           <MessageSquare size={40} style={{ color: 'var(--color-text-faint)', margin: '0 auto 12px' }} />
           <p className="text-sm" style={{ color: 'var(--color-text-faint)' }}>No questions yet.</p>
@@ -174,8 +186,8 @@ export default function AskElders() {
                   </div>
                 )}
 
-                {/* Leader answer form */}
-                {!q.is_answered && profile?.role === 'admin' && (
+                {/* Elder answer form */}
+                {!q.is_answered && (profile?.role === 'admin' || profile?.role === 'elder') && (
                   answeringId === q.id ? (
                     <div className="mt-3 space-y-3">
                       <textarea className="input" rows={3} placeholder="Write your answer..."

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, Heart, User, Bell, Shield } from 'lucide-react';
+import { Home, Users, Heart, User, Bell, Shield, HeartHandshake, HelpCircle } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import ToastContainer from '@/components/ToastContainer';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -39,20 +39,31 @@ export default function Layout() {
           </NavLink>
 
           <div className="flex items-center gap-1">
-            {profile?.role === 'admin' && (
+            {(profile?.role === 'admin' || profile?.role === 'elder') && (
               <NavLink
                 to="/admin"
                 className="flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors no-underline"
                 style={{ color: 'var(--color-text-muted)' }}
               >
-                <Shield size={18} />
-                <span className="text-xs font-bold hidden sm:inline">Admin</span>
+                {profile.role === 'admin' ? <Shield size={18} /> : <HeartHandshake size={18} />}
+                <span className="text-xs font-bold hidden sm:inline">
+                  {profile.role === 'admin' ? 'Admin' : 'Leadership'}
+                </span>
               </NavLink>
             )}
+            <NavLink
+              to="/guide"
+              className="flex items-center px-2.5 py-2.5 rounded-xl transition-colors no-underline"
+              style={{ color: 'var(--color-text-muted)' }}
+              aria-label="Help & Guide"
+            >
+              <HelpCircle size={18} />
+            </NavLink>
             <NavLink
               to="/notifications"
               className="relative flex items-center gap-2 px-3 py-2.5 rounded-xl transition-colors no-underline"
               style={{ color: 'var(--color-text-muted)' }}
+              aria-label="Notifications"
             >
               <Bell size={18} />
               {unreadNotificationCount > 0 && (
@@ -78,7 +89,7 @@ export default function Layout() {
         className="fixed bottom-0 left-0 right-0 z-40 glass pb-safe"
         style={{ borderTop: '1px solid var(--color-glass-border)' }}
       >
-        <div className="max-w-lg mx-auto flex items-center justify-around h-[72px] px-2">
+        <div className="max-w-lg mx-auto flex items-center justify-around h-[60px] px-2">
           {navItems.map(({ path, icon: Icon, label }) => {
             const isActive = location.pathname === path;
             return (
