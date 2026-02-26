@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { supabase } from '@/lib/supabase';
@@ -2351,6 +2351,11 @@ export default function AdminDashboard() {
     />;
   }
 
+  // ─── Celebrations Calendar ──────────────────────────────
+  if (section === 'celebrations') {
+    return <CelebrationsCalendar profiles={profiles} navigate={navigate} BackBtn={BackBtn} />;
+  }
+
   return null;
 }
 
@@ -2605,13 +2610,6 @@ function PodsAdmin({
       </div>
     </div>
   );
-
-  // ─── Celebrations Calendar ──────────────────────────────
-  if (section === 'celebrations') {
-    return <CelebrationsCalendar profiles={profiles} navigate={navigate} BackBtn={BackBtn} />;
-  }
-
-  return null;
 }
 
 // ─── Celebrations Calendar Component ────────────────────────
@@ -2622,7 +2620,7 @@ function CelebrationsCalendar({
 }: {
   profiles: Array<{ id: string; first_name: string; last_name: string; photo_url: string | null; birthday: string | null; wedding_anniversary: string | null; birthday_visible: boolean }>;
   navigate: (path: string) => void;
-  BackBtn: () => JSX.Element;
+  BackBtn: () => React.ReactElement;
 }) {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
