@@ -76,6 +76,9 @@ interface AppState {
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   uploadAvatar: (file: File) => Promise<string>;
   updateUserRole: (userId: string, newRole: 'admin' | 'elder' | 'member') => Promise<void>;
+  banUser: (userId: string, reason: string) => Promise<void>;
+  unbanUser: (userId: string) => Promise<void>;
+  removeUser: (userId: string) => Promise<void>;
 
   // Posts
   addPost: (content: string, imageFile?: File) => Promise<Post | undefined>;
@@ -582,6 +585,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Update profiles list
     setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, role: newRole } : p));
     addToast('success', `Role updated to ${newRole}`);
+  }, [user, addToast]);
+
+  const banUser = useCallback(async (userId: string, reason: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ status: 'banned', banned_at: new Date().toISOString(), banned_reason: reason })
+      .eq('id', userId);
+    if (error) throw error;
+    setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, status: 'banned' as const, banned_at: new Date().toISOString(), banned_reason: reason } : p));
+    addToast('success', 'User has been banned');
+  }, [user, addToast]);
+
+  const unbanUser = useCallback(async (userId: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ status: 'active', banned_at: null, banned_reason: null })
+      .eq('id', userId);
+    if (error) throw error;
+    setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, status: 'active' as const, banned_at: null, banned_reason: null } : p));
+    addToast('success', 'User has been unbanned');
+  }, [user, addToast]);
+
+  const removeUser = useCallback(async (userId: string) => {
+    if (!user) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ status: 'removed', banned_at: new Date().toISOString(), banned_reason: 'Account removed by admin' })
+      .eq('id', userId);
+    if (error) throw error;
+    setProfiles((prev) => prev.map((p) => p.id === userId ? { ...p, status: 'removed' as const } : p));
+    addToast('success', 'User has been removed');
   }, [user, addToast]);
 
   // ─── Post Actions ─────────────────────────────────────────
@@ -1189,7 +1225,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pods, podMembers, podCheckins, guideSections,
     toasts, addToast, removeToast,
     signIn, signUp, signOut,
-    updateProfile, uploadAvatar, updateUserRole,
+    updateProfile, uploadAvatar, updateUserRole, banUser, unbanUser, removeUser,
     addPost, deletePost, togglePin, toggleReaction, addComment, deleteComment,
     addPrayerRequest, deletePrayerRequest, markPrayerAnswered, togglePrayerResponse,
     addEvent, updateEvent, deleteEvent, rsvpEvent, setEventReminder, removeEventReminder, recordAttendance,

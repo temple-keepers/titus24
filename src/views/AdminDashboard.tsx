@@ -48,7 +48,7 @@ export default function AdminDashboard() {
     recordAttendance, addFollowUpNote,
     addEvent, updateEvent, deleteEvent, addBibleStudy, addResource, addPost,
     addDevotional, updateDevotional, deleteDevotional,
-    updateUserRole,
+    updateUserRole, banUser, unbanUser, removeUser,
     pods, podMembers, addPod, deletePod, addPodMember, removePodMember,
     guideSections, addGuideSection, updateGuideSection, deleteGuideSection,
     addToast,
@@ -121,6 +121,10 @@ export default function AdminDashboard() {
   const [userActivityStats, setUserActivityStats] = useState<Record<string, { checkins: number; posts: number; prayers: number }>>({});
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [roleChangeUser, setRoleChangeUser] = useState<{ id: string; name: string; currentRole: string; newRole: 'admin' | 'elder' | 'member' } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'banned' | 'removed' | 'all'>('active');
+  const [banTarget, setBanTarget] = useState<{ id: string; name: string } | null>(null);
+  const [banReason, setBanReason] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Mentoring
   const [mentorAssignments, setMentorAssignments] = useState<MentorAssignment[]>([]);
@@ -1357,7 +1361,8 @@ export default function AdminDashboard() {
         const matchesSearch = searchTerm === '' ||
           `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = roleFilter === 'all' || p.role === roleFilter;
-        return matchesSearch && matchesRole;
+        const matchesStatus = statusFilter === 'all' || (p.status || 'active') === statusFilter;
+        return matchesSearch && matchesRole && matchesStatus;
       })
       .sort((a, b) => {
         const ra = roleOrder[a.role as keyof typeof roleOrder] ?? 3;
@@ -1436,6 +1441,14 @@ export default function AdminDashboard() {
               Members ({profiles?.filter(p => p.role === 'member').length || 0})
             </button>
           </div>
+          <div className="flex gap-2">
+            {(['active', 'banned', 'removed', 'all'] as const).map((s) => (
+              <button key={s} className={cn('btn btn-sm flex-1', statusFilter === s && 'btn-primary')} onClick={() => setStatusFilter(s)}>
+                {s === 'all' ? 'All Statuses' : s.charAt(0).toUpperCase() + s.slice(1)}
+                {s !== 'all' && ` (${profiles?.filter(p => (p.status || 'active') === s).length || 0})`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Member List */}
@@ -1455,6 +1468,12 @@ export default function AdminDashboard() {
                         <span className={cn('badge badge-sm', roleBadgeClass(member.role))}>
                           {member.role}
                         </span>
+                        {(member.status === 'banned') && (
+                          <span className="badge badge-sm" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>Banned</span>
+                        )}
+                        {(member.status === 'removed') && (
+                          <span className="badge badge-sm" style={{ background: 'rgba(107,114,128,0.15)', color: '#6b7280' }}>Removed</span>
+                        )}
                       </div>
                       {(member.city || member.area) && (
                         <div className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
@@ -1499,6 +1518,40 @@ export default function AdminDashboard() {
                       <option value="member">Member</option>
                     </select>
                   </div>
+
+                  {/* Ban / Remove Actions */}
+                  {member.id !== user?.id && (
+                    <div className="flex gap-2">
+                      {(member.status || 'active') === 'active' && (
+                        <button
+                          className="btn btn-sm flex-1 text-xs"
+                          style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}
+                          onClick={() => { setBanTarget({ id: member.id, name: `${member.first_name} ${member.last_name}` }); setBanReason(''); }}
+                        >
+                          Ban User
+                        </button>
+                      )}
+                      {member.status === 'banned' && (
+                        <button
+                          className="btn btn-sm flex-1 text-xs btn-secondary"
+                          onClick={async () => {
+                            try { await unbanUser(member.id); } catch { addToast('error', 'Failed to unban user'); }
+                          }}
+                        >
+                          Unban User
+                        </button>
+                      )}
+                      {member.status !== 'removed' && (
+                        <button
+                          className="btn btn-sm flex-1 text-xs"
+                          style={{ background: 'rgba(107,114,128,0.1)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.2)' }}
+                          onClick={() => setRemoveTarget({ id: member.id, name: `${member.first_name} ${member.last_name}` })}
+                        >
+                          Remove User
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1537,6 +1590,61 @@ export default function AdminDashboard() {
             </>
           )}
         </Modal>
+
+        {/* Ban User Modal */}
+        <Modal isOpen={!!banTarget} onClose={() => setBanTarget(null)} title="Ban User" size="sm">
+          {banTarget && (
+            <>
+              <p className="text-sm mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                Ban <strong>{banTarget.name}</strong> from the app? They will be signed out and unable to access any features.
+              </p>
+              <textarea
+                className="input w-full mb-4"
+                rows={3}
+                placeholder="Reason for ban (required)..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <button className="btn btn-secondary flex-1" onClick={() => setBanTarget(null)}>Cancel</button>
+                <button
+                  className="btn flex-1"
+                  style={{ background: '#ef4444', color: '#fff' }}
+                  disabled={!banReason.trim()}
+                  onClick={async () => {
+                    try {
+                      await banUser(banTarget.id, banReason.trim());
+                      setBanTarget(null);
+                      setBanReason('');
+                    } catch {
+                      addToast('error', 'Failed to ban user');
+                    }
+                  }}
+                >
+                  Ban User
+                </button>
+              </div>
+            </>
+          )}
+        </Modal>
+
+        {/* Remove User Confirmation */}
+        <ConfirmModal
+          isOpen={!!removeTarget}
+          title="Remove User"
+          message={`Remove ${removeTarget?.name} from the app? This will soft-delete their account. They will be signed out and won't appear in the directory.`}
+          confirmLabel="Remove"
+          onConfirm={async () => {
+            if (!removeTarget) return;
+            try {
+              await removeUser(removeTarget.id);
+            } catch {
+              addToast('error', 'Failed to remove user');
+            }
+            setRemoveTarget(null);
+          }}
+          onCancel={() => setRemoveTarget(null)}
+        />
       </div>
     );
   }

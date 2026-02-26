@@ -27,10 +27,11 @@ export default function Directory() {
   const navigate = useNavigate();
   const viewProfile = (p: Profile) => navigate(`/member/${p.id}`);
 
-  const allMembers = profiles.filter((p) => p.id !== user?.id);
+  const activeProfiles = profiles.filter((p) => (p.status || 'active') === 'active');
+  const allMembers = activeProfiles.filter((p) => p.id !== user?.id);
 
   const filtered = useMemo(() => {
-    return profiles
+    return activeProfiles
       .filter((p) => p.id !== user?.id)
       .filter((p) => {
         const matchesSearch = search === '' ||
@@ -46,7 +47,7 @@ export default function Directory() {
         if (ra !== rb) return ra - rb;
         return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
       });
-  }, [profiles, user, search, roleFilter]);
+  }, [activeProfiles, user, search, roleFilter]);
 
   // Split members by role for sectioned view (admins grouped with elders)
   const elders = useMemo(() => filtered.filter((m) => m.role === 'elder' || m.role === 'admin'), [filtered]);

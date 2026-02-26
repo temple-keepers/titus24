@@ -22,6 +22,9 @@ export interface Profile {
   digest_time: string | null;
   digest_timezone: string | null;
   last_attended: string | null;
+  status: 'active' | 'banned' | 'removed';
+  banned_at: string | null;
+  banned_reason: string | null;
   checkin_streak?: number;
   total_points?: number;
   last_checkin_date?: string | null;

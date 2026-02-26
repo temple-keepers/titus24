@@ -33,14 +33,54 @@ function withEB(el: React.ReactNode) {
   return <RouteErrorBoundary>{el}</RouteErrorBoundary>;
 }
 
+function BannedScreen({ reason, onSignOut }: { reason: string | null; onSignOut: () => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--color-bg)' }}>
+      <div className="card max-w-sm w-full text-center space-y-5 py-10">
+        <div className="text-5xl">🚫</div>
+        <div>
+          <h1 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
+            Account Suspended
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Your account has been suspended by an administrator.
+          </p>
+          {reason && (
+            <p className="text-sm mt-3 px-4 py-3 rounded-xl" style={{ background: 'var(--color-bg-raised)', color: 'var(--color-text-secondary)' }}>
+              <strong>Reason:</strong> {reason}
+            </p>
+          )}
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-text-faint)' }}>
+          If you believe this is a mistake, please contact your church leadership.
+        </p>
+        <button className="btn btn-primary" onClick={onSignOut}>
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
-  const { user, profile, authLoading, loading } = useApp();
+  const { user, profile, authLoading, loading, signOut } = useApp();
 
   if (authLoading) return <LoadingScreen />;
   if (!user) return <Auth />;
 
   // Show loading while initial data fetches (no profile yet)
   if (!profile && loading) return <LoadingScreen />;
+
+  // Enforce ban — show banned screen
+  if (profile?.status === 'banned') {
+    return <BannedScreen reason={profile.banned_reason} onSignOut={signOut} />;
+  }
+
+  // Removed users — sign out immediately
+  if (profile?.status === 'removed') {
+    signOut();
+    return <LoadingScreen />;
+  }
 
   // Show onboarding if profile incomplete — require city/country (photo is optional)
   if (profile && !profile.area && !profile.city) {
