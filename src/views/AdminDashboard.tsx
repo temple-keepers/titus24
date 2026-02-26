@@ -44,9 +44,10 @@ export default function AdminDashboard() {
     profiles, posts, comments, reactions,
     prayerRequests, prayerResponses, events,
     followUpNotes, dailyDevotionals,
+    bibleStudies, studyDays: studyDaysData, studyEnrollments: studyEnrollmentsData,
     deletePost, togglePin, deletePrayerRequest,
     recordAttendance, addFollowUpNote,
-    addEvent, updateEvent, deleteEvent, addBibleStudy, addResource, addPost,
+    addEvent, updateEvent, deleteEvent, addBibleStudy, deleteBibleStudy, addResource, addPost,
     addDevotional, updateDevotional, deleteDevotional,
     updateUserRole, banUser, unbanUser, removeUser,
     pods, podMembers, addPod, deletePod, addPodMember, removePodMember,
@@ -93,7 +94,7 @@ export default function AdminDashboard() {
   const [studyTitle, setStudyTitle] = useState('');
   const [studyDesc, setStudyDesc] = useState('');
   const [studyTotalDays, setStudyTotalDays] = useState(7);
-  const [studyDays, setStudyDays] = useState<Array<{ day_number: number; title: string; scripture_ref: string; reflection_prompt: string }>>([]);
+  const [studyDays, setStudyDays] = useState<Array<{ day_number: number; title: string; scripture_ref: string; scripture_text: string; reflection_prompt: string }>>([]);
   const [studySaving, setStudySaving] = useState(false);
 
   // Resource creation
@@ -535,31 +536,80 @@ export default function AdminDashboard() {
     // Ensure days array matches total
     const ensureDays = (total: number) => {
       setStudyTotalDays(total);
-      setStudyDays(Array.from({ length: total }, (_, i) => ({
+      setStudyDays((prev) => Array.from({ length: total }, (_, i) => ({
         day_number: i + 1,
-        title: studyDays[i]?.title || `Day ${i + 1}`,
-        scripture_ref: studyDays[i]?.scripture_ref || '',
-        reflection_prompt: studyDays[i]?.reflection_prompt || '',
+        title: prev[i]?.title || `Day ${i + 1}`,
+        scripture_ref: prev[i]?.scripture_ref || '',
+        scripture_text: prev[i]?.scripture_text || '',
+        reflection_prompt: prev[i]?.reflection_prompt || '',
       })));
     };
+
+    // Auto-initialize days array when section first loads
+    if (studyDays.length === 0) ensureDays(studyTotalDays);
+
+    const existingStudies = bibleStudies;
+    const allStudyDaysData = studyDaysData;
+    const allEnrollments = studyEnrollmentsData;
 
     return (
       <div className="space-y-5">
         <BackBtn />
         <div>
-          <h1 className="font-display text-xl font-bold" style={{ color: 'var(--color-text)' }}>Create Bible Study</h1>
+          <h1 className="font-display text-xl font-bold" style={{ color: 'var(--color-text)' }}>Bible Studies</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            <strong>Step 1:</strong> Set the title and number of days. <strong>Step 2:</strong> Fill in each day. <strong>Step 3:</strong> Save.
+            Create and manage Bible studies for the sisters.
           </p>
         </div>
 
+        {/* Existing studies overview */}
+        {existingStudies.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="section-label">Existing Studies ({existingStudies.length})</h3>
+            {existingStudies.map((s) => {
+              const enrollCount = allEnrollments.filter((e) => e.study_id === s.id).length;
+              const dayCount = allStudyDaysData.filter((d) => d.study_id === s.id).length;
+              return (
+                <div key={s.id} className="card flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-sage-soft)' }}>
+                    <BookOpen size={18} style={{ color: 'var(--color-sage)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-bold truncate" style={{ color: 'var(--color-text)' }}>{s.title}</h4>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                      {dayCount} days &middot; {enrollCount} enrolled
+                    </p>
+                  </div>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--color-error)' }}
+                    onClick={async () => {
+                      if (!window.confirm(`Delete "${s.title}"? This will remove the study and all associated days, enrollments, and progress.`)) return;
+                      try {
+                        await deleteBibleStudy(s.id);
+                      } catch {
+                        addToast('error', 'Failed to delete study');
+                      }
+                    }}
+                    aria-label="Delete study"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Create new study */}
+        <h3 className="section-label">Create New Study</h3>
         <div className="card space-y-4">
           <div>
             <label className="label">Study Title *</label>
             <input className="input" placeholder="e.g. Proverbs 31 Woman" value={studyTitle} onChange={(e) => setStudyTitle(e.target.value)} />
           </div>
           <div>
-            <label className="label">Description</label>
+            <label className="label">Description *</label>
             <textarea className="input" rows={2} placeholder="What will the sisters learn?" value={studyDesc} onChange={(e) => setStudyDesc(e.target.value)} />
           </div>
           <div>
@@ -573,62 +623,90 @@ export default function AdminDashboard() {
         {/* Day-by-day content */}
         <div className="space-y-3">
           <h3 className="section-label">Daily Content ({studyDays.length} days)</h3>
-          {studyDays.map((day, idx) => (
-            <details key={idx} className="card">
-              <summary className="font-bold text-sm cursor-pointer" style={{ color: 'var(--color-text)' }}>
-                Day {day.day_number}: {day.title || '(untitled)'}
-              </summary>
-              <div className="space-y-3 mt-4">
-                <div>
-                  <label className="label">Day Title</label>
-                  <input className="input" placeholder="e.g. The Heart of a Virtuous Woman"
-                    value={day.title}
-                    onChange={(e) => {
-                      const updated = [...studyDays];
-                      updated[idx] = { ...updated[idx], title: e.target.value };
-                      setStudyDays(updated);
-                    }} />
+          {studyDays.map((day, idx) => {
+            const filled = day.scripture_ref.trim() && day.reflection_prompt.trim();
+            return (
+              <details key={idx} className="card" style={filled ? { borderColor: 'rgba(16,185,129,0.2)' } : undefined}>
+                <summary className="font-bold text-sm cursor-pointer flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+                  <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{
+                    background: filled ? 'rgba(16,185,129,0.15)' : 'var(--color-bg-overlay)',
+                    color: filled ? 'rgb(16,185,129)' : 'var(--color-text-faint)',
+                  }}>
+                    {day.day_number}
+                  </span>
+                  {day.title || '(untitled)'}
+                  {filled && <span className="text-[10px] ml-auto" style={{ color: 'rgb(16,185,129)' }}>Ready</span>}
+                </summary>
+                <div className="space-y-3 mt-4">
+                  <div>
+                    <label className="label">Day Title</label>
+                    <input className="input" placeholder="e.g. The Heart of a Virtuous Woman"
+                      value={day.title}
+                      onChange={(e) => {
+                        const updated = [...studyDays];
+                        updated[idx] = { ...updated[idx], title: e.target.value };
+                        setStudyDays(updated);
+                      }} />
+                  </div>
+                  <div>
+                    <label className="label">Scripture Reference *</label>
+                    <input className="input" placeholder="e.g. Proverbs 31:10-12"
+                      value={day.scripture_ref}
+                      onChange={(e) => {
+                        const updated = [...studyDays];
+                        updated[idx] = { ...updated[idx], scripture_ref: e.target.value };
+                        setStudyDays(updated);
+                      }} />
+                  </div>
+                  <div>
+                    <label className="label">Scripture Text (optional — paste the verses)</label>
+                    <textarea className="input text-sm" rows={3} placeholder="Paste the scripture text here so the sisters can read it directly…"
+                      value={day.scripture_text}
+                      onChange={(e) => {
+                        const updated = [...studyDays];
+                        updated[idx] = { ...updated[idx], scripture_text: e.target.value };
+                        setStudyDays(updated);
+                      }} />
+                  </div>
+                  <div>
+                    <label className="label">Reflection Question *</label>
+                    <textarea className="input" rows={2} placeholder="e.g. What does virtue look like in your daily life?"
+                      value={day.reflection_prompt}
+                      onChange={(e) => {
+                        const updated = [...studyDays];
+                        updated[idx] = { ...updated[idx], reflection_prompt: e.target.value };
+                        setStudyDays(updated);
+                      }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="label">Scripture Reference</label>
-                  <input className="input" placeholder="e.g. Proverbs 31:10-12"
-                    value={day.scripture_ref}
-                    onChange={(e) => {
-                      const updated = [...studyDays];
-                      updated[idx] = { ...updated[idx], scripture_ref: e.target.value };
-                      setStudyDays(updated);
-                    }} />
-                </div>
-                <div>
-                  <label className="label">Reflection Question</label>
-                  <textarea className="input" rows={2} placeholder="e.g. What does virtue look like in your daily life?"
-                    value={day.reflection_prompt}
-                    onChange={(e) => {
-                      const updated = [...studyDays];
-                      updated[idx] = { ...updated[idx], reflection_prompt: e.target.value };
-                      setStudyDays(updated);
-                    }} />
-                </div>
-              </div>
-            </details>
-          ))}
+              </details>
+            );
+          })}
         </div>
 
         <button
           className="btn btn-sage btn-lg w-full"
-          disabled={!studyTitle.trim() || studySaving}
+          disabled={!studyTitle.trim() || !studyDesc.trim() || studySaving}
           onClick={async () => {
+            // Validate every day has scripture_ref and reflection_prompt
+            const incomplete = studyDays.filter(d => !d.scripture_ref.trim() || !d.reflection_prompt.trim());
+            if (incomplete.length > 0) {
+              addToast('error', `${incomplete.length} day(s) are missing scripture reference or reflection question`);
+              return;
+            }
             setStudySaving(true);
             try {
               await addBibleStudy({
                 title: studyTitle.trim(),
                 description: studyDesc.trim(),
                 totalDays: studyTotalDays,
-                days: studyDays.map(d => ({ ...d, scripture_text: null })),
+                days: studyDays.map(d => ({
+                  ...d,
+                  scripture_text: d.scripture_text?.trim() || null,
+                })),
               });
               setStudyTitle(''); setStudyDesc(''); setStudyTotalDays(7);
               setStudyDays([]);
-              addToast('success', 'Bible study created!');
               setSection('home');
             } catch {
               addToast('error', 'Failed to create study');

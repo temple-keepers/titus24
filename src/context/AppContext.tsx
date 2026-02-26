@@ -105,6 +105,7 @@ interface AppState {
 
   // Bible Study
   addBibleStudy: (data: { title: string; description: string; totalDays: number; days: Omit<StudyDay, 'id' | 'study_id'>[] }) => Promise<void>;
+  deleteBibleStudy: (studyId: string) => Promise<void>;
   enrollInStudy: (studyId: string) => Promise<void>;
   unenrolFromStudy: (studyId: string) => Promise<void>;
   completeStudyDay: (studyId: string, dayNumber: number, reflection?: string) => Promise<void>;
@@ -861,8 +862,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (error || !study) throw error ?? new Error('Failed to create study');
 
     const dayRows = data.days.map((d) => ({ ...d, study_id: study.id }));
-    await supabase.from('study_days').insert(dayRows);
+    const { data: insertedDays } = await supabase.from('study_days').insert(dayRows).select();
+
+    // Update local state so the study appears immediately
+    setBibleStudies((prev) => [study, ...prev]);
+    if (insertedDays) setStudyDays((prev) => [...prev, ...insertedDays]);
     addToast('success', 'Bible study created');
+  }, [user, addToast]);
+
+  const deleteBibleStudy = useCallback(async (studyId: string) => {
+    if (!user) return;
+    await supabase.from('study_progress').delete().eq('study_id', studyId);
+    await supabase.from('study_enrollments').delete().eq('study_id', studyId);
+    await supabase.from('study_days').delete().eq('study_id', studyId);
+    await supabase.from('bible_studies').delete().eq('id', studyId);
+    setBibleStudies((prev) => prev.filter((s) => s.id !== studyId));
+    setStudyDays((prev) => prev.filter((d) => d.study_id !== studyId));
+    setStudyEnrollments((prev) => prev.filter((e) => e.study_id !== studyId));
+    setStudyProgress((prev) => prev.filter((p) => p.study_id !== studyId));
+    addToast('success', 'Bible study deleted');
   }, [user, addToast]);
 
   const enrollInStudy = useCallback(async (studyId: string) => {
@@ -880,10 +898,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const completeStudyDay = useCallback(async (studyId: string, dayNumber: number, reflection?: string) => {
     if (!user) return;
-    await supabase.from('study_progress').upsert({
+    const { data: progress } = await supabase.from('study_progress').upsert({
       user_id: user.id, study_id: studyId, day_number: dayNumber, reflection: reflection ?? null,
-    }, { onConflict: 'user_id,study_id,day_number' });
-    addToast('success', 'Day completed ✨');
+    }, { onConflict: 'user_id,study_id,day_number' }).select().single();
+
+    // Update local state so the day shows as completed immediately
+    if (progress) {
+      setStudyProgress((prev) => {
+        const filtered = prev.filter((p) => !(p.study_id === studyId && p.day_number === dayNumber && p.user_id === user.id));
+        return [...filtered, progress];
+      });
+    }
+    addToast('success', 'Day completed');
     checkBadges();
   }, [user, addToast, checkBadges]);
 
@@ -1229,7 +1255,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     addPost, deletePost, togglePin, toggleReaction, addComment, deleteComment,
     addPrayerRequest, deletePrayerRequest, markPrayerAnswered, togglePrayerResponse,
     addEvent, updateEvent, deleteEvent, rsvpEvent, setEventReminder, removeEventReminder, recordAttendance,
-    addBibleStudy, enrollInStudy, unenrolFromStudy, completeStudyDay,
+    addBibleStudy, deleteBibleStudy, enrollInStudy, unenrolFromStudy, completeStudyDay,
     addAlbum, uploadPhoto, deletePhoto,
     sendMessage, getConversations, markMessagesRead, unreadMessageCount,
     addResource, deleteResource,
