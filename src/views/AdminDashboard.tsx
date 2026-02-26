@@ -241,6 +241,7 @@ export default function AdminDashboard() {
                     day_number: i + 1,
                     title: `Day ${i + 1}`,
                     scripture_ref: '',
+                    scripture_text: '',
                     reflection_prompt: '',
                   })));
                 }
