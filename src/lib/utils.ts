@@ -18,12 +18,17 @@ export function fullDate(dateStr: string): string {
   return format(parseISO(dateStr), 'EEEE, d MMMM yyyy');
 }
 
-/** "2:30 PM" */
+/** "2:30 PM" — handles HH:mm or free-text gracefully */
 export function formatTime(timeStr: string): string {
-  const [h, m] = timeStr.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m);
-  return format(d, 'h:mm a');
+  // If it's a standard HH:mm format, format it nicely
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (match) {
+    const d = new Date();
+    d.setHours(Number(match[1]), Number(match[2]));
+    return format(d, 'h:mm a');
+  }
+  // Otherwise return the free-text as-is (e.g. "10:00 AM AST / 2:00 PM GMT")
+  return timeStr;
 }
 
 /** Generate unique ID */
