@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from '@/context/AppContext';
 import Layout from '@/components/Layout';
@@ -7,27 +8,27 @@ import RouteErrorBoundary from '@/components/RouteErrorBoundary';
 import Auth from '@/views/Auth';
 import Onboarding from '@/views/Onboarding';
 import Home from '@/views/Home';
-import Community from '@/views/Community';
-import PrayerWall from '@/views/PrayerWall';
-import Events from '@/views/Events';
-import BibleStudy from '@/views/BibleStudy';
-import Gallery from '@/views/Gallery';
-import Messages from '@/views/Messages';
-import Directory from '@/views/Directory';
-import Resources from '@/views/Resources';
-import Profile from '@/views/Profile';
-import Notifications from '@/views/Notifications';
-import SearchView from '@/views/SearchView';
-import AdminDashboard from '@/views/AdminDashboard';
-import DailyDevotional from '@/views/DailyDevotional';
-import CheckIn from '@/views/CheckIn';
-// Testimonies merged into PrayerWall
-import AskElders from '@/views/AskElders';
-import PrayerPartners from '@/views/PrayerPartners';
-import Leaderboard from '@/views/Leaderboard';
-import Pods from '@/views/Pods';
-import MemberProfile from '@/views/MemberProfile';
-import Guide from '@/views/Guide';
+
+const Community = lazy(() => import('@/views/Community'));
+const PrayerWall = lazy(() => import('@/views/PrayerWall'));
+const Events = lazy(() => import('@/views/Events'));
+const BibleStudy = lazy(() => import('@/views/BibleStudy'));
+const Gallery = lazy(() => import('@/views/Gallery'));
+const Messages = lazy(() => import('@/views/Messages'));
+const Directory = lazy(() => import('@/views/Directory'));
+const Resources = lazy(() => import('@/views/Resources'));
+const Profile = lazy(() => import('@/views/Profile'));
+const Notifications = lazy(() => import('@/views/Notifications'));
+const SearchView = lazy(() => import('@/views/SearchView'));
+const AdminDashboard = lazy(() => import('@/views/AdminDashboard'));
+const DailyDevotional = lazy(() => import('@/views/DailyDevotional'));
+const CheckIn = lazy(() => import('@/views/CheckIn'));
+const AskElders = lazy(() => import('@/views/AskElders'));
+const PrayerPartners = lazy(() => import('@/views/PrayerPartners'));
+const Leaderboard = lazy(() => import('@/views/Leaderboard'));
+const Pods = lazy(() => import('@/views/Pods'));
+const MemberProfile = lazy(() => import('@/views/MemberProfile'));
+const Guide = lazy(() => import('@/views/Guide'));
 
 function withEB(el: React.ReactNode) {
   return <RouteErrorBoundary>{el}</RouteErrorBoundary>;
@@ -88,33 +89,35 @@ function AppRoutes() {
   }
 
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route path="/" element={withEB(<Home />)} />
-        <Route path="/community" element={withEB(<Community />)} />
-        <Route path="/prayer" element={withEB(<PrayerWall />)} />
-        <Route path="/events" element={withEB(<Events />)} />
-        <Route path="/study" element={withEB(<BibleStudy />)} />
-        <Route path="/gallery" element={withEB(<Gallery />)} />
-        <Route path="/messages" element={withEB(<Messages />)} />
-        <Route path="/directory" element={withEB(<Directory />)} />
-        <Route path="/resources" element={withEB(<Resources />)} />
-        <Route path="/profile" element={withEB(<Profile />)} />
-        <Route path="/notifications" element={withEB(<Notifications />)} />
-        <Route path="/search" element={withEB(<SearchView />)} />
-        <Route path="/admin" element={withEB(<AdminDashboard />)} />
-        <Route path="/check-in" element={withEB(<CheckIn />)} />
-        <Route path="/devotional" element={withEB(<DailyDevotional />)} />
-        <Route path="/testimonies" element={<Navigate to="/prayer" replace />} />
-        <Route path="/ask-elders" element={withEB(<AskElders />)} />
-        <Route path="/prayer-partners" element={withEB(<PrayerPartners />)} />
-        <Route path="/leaderboard" element={withEB(<Leaderboard />)} />
-        <Route path="/pods" element={withEB(<Pods />)} />
-        <Route path="/member/:userId" element={withEB(<MemberProfile />)} />
-        <Route path="/guide" element={withEB(<Guide />)} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="/" element={withEB(<Home />)} />
+          <Route path="/community" element={withEB(<Community />)} />
+          <Route path="/prayer" element={withEB(<PrayerWall />)} />
+          <Route path="/events" element={withEB(<Events />)} />
+          <Route path="/study" element={withEB(<BibleStudy />)} />
+          <Route path="/gallery" element={withEB(<Gallery />)} />
+          <Route path="/messages" element={withEB(<Messages />)} />
+          <Route path="/directory" element={withEB(<Directory />)} />
+          <Route path="/resources" element={withEB(<Resources />)} />
+          <Route path="/profile" element={withEB(<Profile />)} />
+          <Route path="/notifications" element={withEB(<Notifications />)} />
+          <Route path="/search" element={withEB(<SearchView />)} />
+          <Route path="/admin" element={withEB(<AdminDashboard />)} />
+          <Route path="/check-in" element={withEB(<CheckIn />)} />
+          <Route path="/devotional" element={withEB(<DailyDevotional />)} />
+          <Route path="/testimonies" element={<Navigate to="/prayer" replace />} />
+          <Route path="/ask-elders" element={withEB(<AskElders />)} />
+          <Route path="/prayer-partners" element={withEB(<PrayerPartners />)} />
+          <Route path="/leaderboard" element={withEB(<Leaderboard />)} />
+          <Route path="/pods" element={withEB(<Pods />)} />
+          <Route path="/member/:userId" element={withEB(<MemberProfile />)} />
+          <Route path="/guide" element={withEB(<Guide />)} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 
