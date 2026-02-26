@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Avatar from '@/components/Avatar';
 import EmptyState from '@/components/EmptyState';
@@ -9,19 +9,25 @@ import { Send, ArrowLeft } from 'lucide-react';
 export default function Messages() {
   const { user, profiles, messages, sendMessage, getConversations, markMessagesRead } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [newMsg, setNewMsg] = useState('');
   const msgEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-open conversation when arriving with ?to=userId
+  // Auto-open conversation when arriving with state.toUserId or ?to=userId
   useEffect(() => {
-    const toId = searchParams.get('to');
+    const stateToId = (location.state as any)?.toUserId;
+    const paramToId = searchParams.get('to');
+    const toId = stateToId || paramToId;
+
     if (toId && profiles.some((p) => p.id === toId && p.id !== user?.id)) {
       setSelectedPartner(toId);
-      // Clean the URL param so back button works naturally
-      setSearchParams({}, { replace: true });
+      // Clean up URL params if they were used
+      if (paramToId) setSearchParams({}, { replace: true });
+      // Clear location state so back button works naturally
+      if (stateToId) window.history.replaceState({}, '');
     }
-  }, [searchParams, profiles, user]);
+  }, [location.state, searchParams, profiles, user]);
 
   const conversations = getConversations();
 

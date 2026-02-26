@@ -173,7 +173,7 @@ export default function MemberProfile() {
         {/* Action buttons */}
         <div className="flex gap-2 mt-4">
           <button
-            onClick={() => navigate(`/messages?to=${memberProfile.id}`)}
+            onClick={() => navigate('/messages', { state: { toUserId: memberProfile.id } })}
             className="btn btn-primary"
           >
             <MessageCircle size={16} />
