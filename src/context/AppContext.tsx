@@ -181,7 +181,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  // Seed from sessionStorage so the recovery gate survives a page refresh.
+  // Cleared on updatePassword() success and on signOut().
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(() => {
+    try { return sessionStorage.getItem('titus24_pw_recovery') === '1'; }
+    catch { return false; }
+  });
   const [loading, setLoading] = useState(false);
 
   // Data state
@@ -246,8 +251,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (event === 'PASSWORD_RECOVERY') {
+        try { sessionStorage.setItem('titus24_pw_recovery', '1'); } catch {}
         setIsPasswordRecovery(true);
       } else if (event === 'SIGNED_OUT') {
+        try { sessionStorage.removeItem('titus24_pw_recovery'); } catch {}
         setIsPasswordRecovery(false);
       }
     });
@@ -554,12 +561,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setSession(null);
     setUser(null);
+    try { sessionStorage.removeItem('titus24_pw_recovery'); } catch {}
     setIsPasswordRecovery(false);
   }, []);
 
   const updatePassword = useCallback(async (newPassword: string) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
+    try { sessionStorage.removeItem('titus24_pw_recovery'); } catch {}
     setIsPasswordRecovery(false);
     addToast('success', 'Password updated. You\'re all set, sister.');
   }, [addToast]);
@@ -1232,12 +1241,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [addToast, failIfError]);
 
   const addPodMember = useCallback(async (podId: string, userId: string, role: 'leader' | 'member' = 'member') => {
+    // Throws on error so callers (AdminDashboard auto-assign / add-member modal)
+    // can distinguish a successful add from a duplicate-membership failure.
     const { data: newMember, error } = await supabase.from('pod_members').insert({
       pod_id: podId, user_id: userId, role,
     }).select().single();
-    if (failIfError(error, 'add this member')) return;
+    if (error) throw error;
     if (newMember) setPodMembers((prev) => [...prev, newMember]);
-  }, [failIfError]);
+  }, []);
 
   const removePodMember = useCallback(async (podId: string, userId: string) => {
     const { error } = await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', userId);
