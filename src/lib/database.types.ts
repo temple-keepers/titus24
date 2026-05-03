@@ -38,8 +38,14 @@ export interface Post {
   content: string;
   image_url: string | null;
   is_pinned: boolean;
-  /** Optional pod scope. Posts with a pod_id only render inside that group. */
-  pod_id?: string | null;
+  created_at: string;
+}
+
+export interface PodCheckin {
+  id: string;
+  pod_id: string;
+  user_id: string;
+  content: string;
   created_at: string;
 }
 
@@ -134,8 +140,9 @@ export interface Pod {
   name: string;
   description: string | null;
   visibility: 'public' | 'private';
-  max_members: number | null;
-  leader_id: string | null;
+  max_members: number;
+  created_by: string;
+  is_active: boolean;
   created_at: string;
 }
 

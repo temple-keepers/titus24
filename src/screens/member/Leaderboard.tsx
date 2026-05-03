@@ -26,12 +26,9 @@ export default function Leaderboard() {
 
   async function refresh() {
     const today = todayLocalISO();
-    const [lbRes, myRes] = await Promise.all([
-      supabase
-        .from('leaderboard')
-        .select('user_id, points, profile:profiles(*)')
-        .order('points', { ascending: false })
-        .limit(50),
+    const [pointsRes, profilesRes, myRes] = await Promise.all([
+      supabase.from('points').select('user_id, points').limit(5000),
+      supabase.from('profiles').select('*').eq('status', 'active'),
       user
         ? supabase
             .from('daily_checkins')
@@ -42,7 +39,17 @@ export default function Leaderboard() {
         : Promise.resolve({ data: [] as Array<{ date: string }> }),
     ]);
 
-    setRows(((lbRes.data as Array<{ points: number; profile: Profile }> | null) ?? []).map((r) => ({ user: r.profile, points: r.points })));
+    const totals = new Map<string, number>();
+    ((pointsRes.data as Array<{ user_id: string; points: number }> | null) ?? []).forEach((p) => {
+      totals.set(p.user_id, (totals.get(p.user_id) ?? 0) + p.points);
+    });
+    const profiles = (profilesRes.data as Profile[] | null) ?? [];
+    const ranked: Row[] = profiles
+      .map((p) => ({ user: p, points: totals.get(p.id) ?? 0 }))
+      .filter((r) => r.points > 0)
+      .sort((a, b) => b.points - a.points)
+      .slice(0, 50);
+    setRows(ranked);
 
     const dates = ((myRes.data as Array<{ date: string }> | null) ?? []).map((r) => r.date);
     setCheckedIn(dates[0] === today);

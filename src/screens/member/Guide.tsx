@@ -7,8 +7,11 @@ import { supabase } from '../../lib/supabase';
 interface Section {
   id: string;
   title: string;
-  body: string;
-  ordinal: number;
+  description: string | null;
+  content: string;
+  category: string | null;
+  display_order: number;
+  is_active: boolean;
 }
 
 export default function Guide() {
@@ -18,8 +21,9 @@ export default function Guide() {
   useEffect(() => {
     supabase
       .from('guide_sections')
-      .select('id, title, body, ordinal')
-      .order('ordinal', { ascending: true })
+      .select('id, title, description, content, category, display_order, is_active')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
       .then(({ data }) => {
         setSections((data as Section[] | null) ?? []);
         setLoading(false);
@@ -38,7 +42,8 @@ export default function Guide() {
         sections.map((s) => (
           <Card key={s.id}>
             <SectionTitle>{s.title}</SectionTitle>
-            <div className="text-sm leading-7 whitespace-pre-wrap">{s.body}</div>
+            {s.description && <p className="text-sm text-app-muted mb-2">{s.description}</p>}
+            <div className="text-sm leading-7 whitespace-pre-wrap">{s.content}</div>
           </Card>
         ))
       )}

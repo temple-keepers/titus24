@@ -41,9 +41,8 @@ import {
   AdminResources,
   AdminStudies,
   AdminPods,
-  AdminAnnouncements,
   AdminGuide,
-  AdminEmailBroadcast,
+  AdminElderQuestions,
 } from './screens/admin/AdminSimplePages';
 
 export default function App() {
@@ -95,8 +94,7 @@ export default function App() {
                     <Route path="studies" element={<AdminStudies />} />
                     <Route path="resources" element={<AdminResources />} />
                     <Route path="pods" element={<AdminPods />} />
-                    <Route path="announcements" element={<AdminAnnouncements />} />
-                    <Route path="email" element={<AdminEmailBroadcast />} />
+                    <Route path="elder-qa" element={<AdminElderQuestions />} />
                     <Route path="celebrations" element={<AdminCelebrations />} />
                     <Route path="guide" element={<AdminGuide />} />
                   </Route>

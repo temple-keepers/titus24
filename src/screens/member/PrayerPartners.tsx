@@ -18,19 +18,21 @@ export default function PrayerPartners() {
   useEffect(() => {
     if (!user) return;
     (async () => {
+      const today = new Date().toISOString().slice(0, 10);
       const { data } = await supabase
-        .from('prayer_partners')
-        .select('a_id, b_id')
-        .or(`a_id.eq.${user.id},b_id.eq.${user.id}`)
-        .order('created_at', { ascending: false })
+        .from('prayer_partnerships')
+        .select('user_a_id, user_b_id')
+        .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
+        .gte('period_end', today)
+        .order('period_start', { ascending: false })
         .limit(1)
         .maybeSingle();
-      const row = data as { a_id: string; b_id: string } | null;
+      const row = data as { user_a_id: string; user_b_id: string } | null;
       if (!row) {
         setLoading(false);
         return;
       }
-      const partnerId = row.a_id === user.id ? row.b_id : row.a_id;
+      const partnerId = row.user_a_id === user.id ? row.user_b_id : row.user_a_id;
       const { data: p } = await supabase.from('profiles').select('*').eq('id', partnerId).maybeSingle();
       setPartner((p as Profile | null) ?? null);
       setLoading(false);

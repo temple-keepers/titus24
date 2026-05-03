@@ -3,12 +3,14 @@ import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
 import { LoadingPage } from '../../components/LoadingPage';
+import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import type { DailyDevotional } from '../../lib/database.types';
 
 export default function AdminDevotionals() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [items, setItems] = useState<DailyDevotional[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,8 @@ export default function AdminDevotionals() {
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const { error } = await supabase.from('daily_devotionals').upsert(form, { onConflict: 'date' });
+    const payload = user ? { ...form, created_by: user.id } : form;
+    const { error } = await supabase.from('daily_devotionals').upsert(payload, { onConflict: 'date' });
     setBusy(false);
     if (failIfError(error, 'save devotional', addToast)) return;
     addToast({ kind: 'success', title: 'Devotional saved' });

@@ -49,15 +49,23 @@ export default function AdminEvents() {
     e.preventDefault();
     if (!user) return;
     setBusy(true);
-    const { error } = await supabase.from('events').insert({
+    if (!form.time) {
+      setBusy(false);
+      addToast({ kind: 'error', title: 'Please choose a time for the event.' });
+      return;
+    }
+    const insert: Record<string, unknown> = {
       title: form.title.trim(),
-      description: form.description.trim() || null,
+      description: form.description.trim() || '',
       date: form.date,
-      time: form.time || null,
-      timezone: form.timezone,
-      location: form.location.trim() || null,
+      time: form.time,
+      location: form.location.trim() || '',
       created_by: user.id,
-    });
+    };
+    // `timezone` exists if the schema migration was applied. If not,
+    // Postgres returns a clear error and the admin sees it.
+    if (form.timezone) insert.timezone = form.timezone;
+    const { error } = await supabase.from('events').insert(insert);
     setBusy(false);
     if (failIfError(error, 'create event', addToast)) return;
     addToast({ kind: 'success', title: 'Event created' });

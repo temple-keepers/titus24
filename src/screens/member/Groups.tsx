@@ -11,7 +11,7 @@ import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { listPods } from '../../data/queries';
 import type { PodWithStats } from '../../data/queries';
-import type { Post, Profile } from '../../lib/database.types';
+import type { Profile } from '../../lib/database.types';
 import { isLeadership, publicRole } from '../../lib/roles';
 import { cn } from '../../lib/cn';
 import { timeAgo } from '../../lib/dates';
@@ -57,10 +57,17 @@ export default function Groups() {
 
   async function leave(p: PodWithStats) {
     if (!user) return;
-    if (p.leader_id === user.id) {
+    // Check if the user is the leader of this pod (per pod_members.role).
+    const { data: myMembership } = await supabase
+      .from('pod_members')
+      .select('role')
+      .eq('pod_id', p.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if ((myMembership as { role?: string } | null)?.role === 'leader') {
       addToast({
         kind: 'error',
-        title: 'Leaders can\'t leave their own group',
+        title: "Leaders can't leave their own group",
         body: 'Please ask an elder to remove you.',
       });
       return;
@@ -150,23 +157,23 @@ export default function Groups() {
 function PodDetail({ pod, onBack }: { pod: PodWithStats; onBack: () => void }) {
   const { user } = useAuth();
   const { addToast } = useToast();
-  const [posts, setPosts] = useState<Array<Post & { author: Pick<Profile, 'id' | 'display_name' | 'first_name' | 'avatar_url' | 'role'> | null }>>([]);
+  const [checkins, setCheckins] = useState<Array<{ id: string; content: string; created_at: string; user_id: string; user: Pick<Profile, 'id' | 'display_name' | 'first_name' | 'avatar_url' | 'role'> | null }>>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [postsRes, membersRes] = await Promise.all([
+    const [checkinsRes, membersRes] = await Promise.all([
       supabase
-        .from('posts')
-        .select('*, author:profiles!posts_author_id_fkey(id, display_name, first_name, avatar_url, role)')
+        .from('pod_checkins')
+        .select('*, user:profiles!pod_checkins_user_id_fkey(id, display_name, first_name, avatar_url, role)')
         .eq('pod_id', pod.id)
         .order('created_at', { ascending: false })
         .limit(50),
       supabase.from('pod_members').select('*, user:profiles!pod_members_user_id_fkey(*)').eq('pod_id', pod.id),
     ]);
-    setPosts((postsRes.data as typeof posts | null) ?? []);
+    setCheckins((checkinsRes.data as typeof checkins | null) ?? []);
     setMembers(((membersRes.data as Array<{ user: Profile }> | null) ?? []).map((m) => m.user));
     setLoading(false);
   }
@@ -180,11 +187,10 @@ function PodDetail({ pod, onBack }: { pod: PodWithStats; onBack: () => void }) {
     e.preventDefault();
     if (!user || !content.trim()) return;
     setBusy(true);
-    const { error } = await supabase.from('posts').insert({
-      author_id: user.id,
-      content: content.trim(),
-      image_url: null,
+    const { error } = await supabase.from('pod_checkins').insert({
       pod_id: pod.id,
+      user_id: user.id,
+      content: content.trim(),
     });
     setBusy(false);
     if (failIfError(error, 'share with the group', addToast)) return;
@@ -219,19 +225,19 @@ function PodDetail({ pod, onBack }: { pod: PodWithStats; onBack: () => void }) {
       </Card>
 
       <SectionTitle>Discussion</SectionTitle>
-      {posts.length === 0 ? (
-        <EmptyState title="No posts yet" body="Be the first to start a conversation." />
+      {checkins.length === 0 ? (
+        <EmptyState title="No check-ins yet" body="Be the first to share with the group." />
       ) : (
-        posts.map((p) => (
-          <Card key={p.id}>
+        checkins.map((c) => (
+          <Card key={c.id}>
             <header className="mb-2 flex items-center gap-3">
-              <Avatar size={32} url={p.author?.avatar_url ?? null} name={p.author?.display_name ?? p.author?.first_name} />
+              <Avatar size={32} url={c.user?.avatar_url ?? null} name={c.user?.display_name ?? c.user?.first_name} />
               <div className="flex-1">
-                <div className="text-sm font-semibold">{p.author?.display_name ?? p.author?.first_name ?? 'Sister'}</div>
-                <div className="text-[11px] text-app-muted">{timeAgo(p.created_at)}</div>
+                <div className="text-sm font-semibold">{c.user?.display_name ?? c.user?.first_name ?? 'Sister'}</div>
+                <div className="text-[11px] text-app-muted">{timeAgo(c.created_at)}</div>
               </div>
             </header>
-            <p className="text-sm whitespace-pre-wrap">{p.content}</p>
+            <p className="text-sm whitespace-pre-wrap">{c.content}</p>
           </Card>
         ))
       )}

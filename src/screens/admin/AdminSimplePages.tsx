@@ -14,6 +14,7 @@ import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
 import { LoadingPage } from '../../components/LoadingPage';
+import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
@@ -32,8 +33,11 @@ function makeListPage(opts: {
   title: string;
   display: (row: Row) => ReactNode;
   fields: Field[];
+  /** Inject the current user's id into these columns on insert. */
+  createdByColumns?: string[];
 }) {
   return function Page() {
+    const { user } = useAuth();
     const { addToast } = useToast();
     const [rows, setRows] = useState<Row[]>([]);
     const [loading, setLoading] = useState(true);
@@ -63,6 +67,9 @@ function makeListPage(opts: {
         const v = form[f.key];
         if (f.type === 'number') payload[f.key] = v ? Number(v) : null;
         else payload[f.key] = v?.trim() || null;
+      }
+      if (opts.createdByColumns && user) {
+        for (const col of opts.createdByColumns) payload[col] = user.id;
       }
       const { error } = await supabase.from(opts.table).insert(payload);
       setBusy(false);
@@ -181,62 +188,50 @@ export const AdminPods = makeListPage({
   display: (r) => (
     <>
       <h3 className="font-display text-lg">{String(r.name)}</h3>
-      <p className="text-xs text-app-muted">{String(r.visibility)}{r.max_members ? ` · max ${r.max_members}` : ''}</p>
+      <p className="text-xs text-app-muted">{String(r.visibility)} · max {String(r.max_members)}</p>
     </>
   ),
   fields: [
     { key: 'name', label: 'Name', required: true },
     { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'visibility', label: 'Visibility (public or private)', required: true },
-    { key: 'max_members', label: 'Max members (optional)', type: 'number' },
+    { key: 'max_members', label: 'Max members', type: 'number', required: true },
   ],
-});
-
-export const AdminAnnouncements = makeListPage({
-  table: 'announcements',
-  title: 'Announcements',
-  display: (r) => (
-    <>
-      <h3 className="font-display text-lg">{String(r.title)}</h3>
-      <p className="text-sm whitespace-pre-wrap">{String(r.body)}</p>
-    </>
-  ),
-  fields: [
-    { key: 'title', label: 'Title', required: true },
-    { key: 'body', label: 'Body', type: 'textarea', required: true },
-    { key: 'audience', label: 'Audience (all, leaders, members)', required: true },
-  ],
+  createdByColumns: ['created_by'],
 });
 
 export const AdminGuide = makeListPage({
+  createdByColumns: ['created_by'],
   table: 'guide_sections',
   title: 'Guide sections',
   display: (r) => (
     <>
       <h3 className="font-display text-lg">{String(r.title)}</h3>
-      <p className="text-sm whitespace-pre-wrap line-clamp-3">{String(r.body)}</p>
+      <p className="text-xs text-app-muted">{String(r.category)} · order {String(r.display_order)}</p>
+      <p className="text-sm whitespace-pre-wrap line-clamp-3">{String(r.content)}</p>
     </>
   ),
   fields: [
     { key: 'title', label: 'Title', required: true },
-    { key: 'body', label: 'Body', type: 'textarea', required: true },
-    { key: 'ordinal', label: 'Order (number)', type: 'number' },
+    { key: 'icon', label: 'Icon (lucide name)', required: true },
+    { key: 'description', label: 'Description', type: 'textarea' },
+    { key: 'content', label: 'Content (markdown / plain)', type: 'textarea', required: true },
+    { key: 'category', label: 'Category (getting_started, features, faq)', required: true },
+    { key: 'display_order', label: 'Display order', type: 'number' },
   ],
 });
 
-export const AdminEmailBroadcast = makeListPage({
-  table: 'email_broadcasts',
-  title: 'Email broadcasts',
+export const AdminElderQuestions = makeListPage({
+  table: 'elder_questions',
+  title: 'Elder questions',
   display: (r) => (
     <>
-      <h3 className="font-display text-lg">{String(r.subject)}</h3>
-      <p className="text-xs text-app-muted">to {String(r.audience)}</p>
-      <p className="text-sm whitespace-pre-wrap line-clamp-3">{String(r.body)}</p>
+      <p className="text-xs uppercase tracking-wide text-app-muted">{String(r.category)} {(r.is_answered as boolean) ? '· answered' : '· awaiting'}</p>
+      <p className="text-sm whitespace-pre-wrap">{String(r.question)}</p>
+      {(r.answer as string | null) && (
+        <p className="mt-2 text-xs italic text-sage-700 whitespace-pre-wrap">Reply: {String(r.answer)}</p>
+      )}
     </>
   ),
-  fields: [
-    { key: 'subject', label: 'Subject', required: true },
-    { key: 'audience', label: 'Audience (all, leaders, members)', required: true },
-    { key: 'body', label: 'Body (Markdown / plain)', type: 'textarea', required: true },
-  ],
+  fields: [],
 });

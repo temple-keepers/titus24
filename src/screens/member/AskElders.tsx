@@ -12,8 +12,10 @@ import { timeAgo } from '../../lib/dates';
 
 interface Question {
   id: string;
-  asker_id: string;
+  author_id: string;
   question: string;
+  category: string;
+  is_answered: boolean;
   answer: string | null;
   answered_at: string | null;
   created_at: string;
@@ -32,7 +34,7 @@ export default function AskElders() {
     const { data } = await supabase
       .from('elder_questions')
       .select('*')
-      .eq('asker_id', user.id)
+      .eq('author_id', user.id)
       .order('created_at', { ascending: false });
     setItems(((data as Question[] | null) ?? []));
     setLoading(false);
@@ -49,7 +51,7 @@ export default function AskElders() {
     setBusy(true);
     const { error } = await supabase
       .from('elder_questions')
-      .insert({ asker_id: user.id, question: text.trim() });
+      .insert({ author_id: user.id, question: text.trim(), category: 'General' });
     setBusy(false);
     if (failIfError(error, 'send your question', addToast)) return;
     addToast({ kind: 'success', title: 'Sent privately to leadership' });
