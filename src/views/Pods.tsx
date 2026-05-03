@@ -71,10 +71,13 @@ export default function Pods() {
             setPosting(false);
           }
         }}
-        onLeave={() => {
-          if (window.confirm('Leave this group? You can rejoin later if it\'s a public group.')) {
-            leavePod(selectedPod.id);
+        onLeave={async () => {
+          if (!window.confirm('Leave this group? You can rejoin later if it\'s a public group.')) return;
+          try {
+            await leavePod(selectedPod.id);
             setSelectedPodId(null);
+          } catch {
+            // leavePod already toasted; stay on the group view so the user can retry.
           }
         }}
         onBack={() => { setSelectedPodId(null); setPostText(''); }}

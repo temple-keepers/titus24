@@ -218,6 +218,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toasts, addToast, removeToast } = useToast();
   const channelRef = useRef<any>(null);
 
+  // Surfaces Supabase errors to the user instead of silently succeeding.
+  // Returns true when the caller should bail (an error occurred).
+  const failIfError = useCallback(
+    (e: { message?: string } | null | undefined, action: string): boolean => {
+      if (e) {
+        addToast('error', `Couldn't ${action}. ${e.message ?? 'Please try again.'}`.trim());
+        return true;
+      }
+      return false;
+    },
+    [addToast],
+  );
+
   // ─── Auth ─────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -663,18 +676,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const togglePin = useCallback(async (postId: string, pinned: boolean) => {
-    await supabase.from('posts').update({ is_pinned: pinned }).eq('id', postId);
+    const { error } = await supabase.from('posts').update({ is_pinned: pinned }).eq('id', postId);
+    if (failIfError(error, pinned ? 'pin this post' : 'unpin this post')) return;
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_pinned: pinned } : p));
-  }, []);
+  }, [failIfError]);
 
   const toggleReaction = useCallback(async (postId: string, type: ReactionType) => {
     if (!user) return;
     const existing = reactions.find((r) => r.post_id === postId && r.user_id === user.id && r.type === type);
     if (existing) {
-      await supabase.from('reactions').delete().eq('id', existing.id);
+      const { error } = await supabase.from('reactions').delete().eq('id', existing.id);
+      if (failIfError(error, 'remove your reaction')) return;
       setReactions((prev) => prev.filter((r) => r.id !== existing.id));
     } else {
-      const { data: newReaction } = await supabase.from('reactions').insert({ post_id: postId, user_id: user.id, type }).select().single();
+      const { data: newReaction, error } = await supabase.from('reactions').insert({ post_id: postId, user_id: user.id, type }).select().single();
+      if (failIfError(error, 'react to this post')) return;
       if (newReaction) setReactions((prev) => [...prev, newReaction]);
       const post = posts.find((p) => p.id === postId);
       if (post && post.author_id !== user.id) {
@@ -682,7 +698,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await createNotification(post.author_id, 'reaction', `${name} reacted`, `${name} reacted to your post`, `/community`);
       }
     }
-  }, [user, reactions, posts, profile, createNotification]);
+  }, [user, reactions, posts, profile, createNotification, failIfError]);
 
   const addComment = useCallback(async (postId: string, content: string, parentId?: string) => {
     if (!user) return;
@@ -715,12 +731,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deleteComment = useCallback(async (commentId: string) => {
     const children = comments.filter((c) => c.parent_id === commentId);
     for (const child of children) {
-      await supabase.from('comments').delete().eq('id', child.id);
+      const { error } = await supabase.from('comments').delete().eq('id', child.id);
+      if (failIfError(error, 'delete a reply')) return;
     }
-    await supabase.from('comments').delete().eq('id', commentId);
+    const { error } = await supabase.from('comments').delete().eq('id', commentId);
+    if (failIfError(error, 'delete this comment')) return;
     const childIds = children.map((c) => c.id);
     setComments((prev) => prev.filter((c) => c.id !== commentId && !childIds.includes(c.id)));
-  }, [comments]);
+  }, [comments, failIfError]);
 
   // ─── Prayer Actions ───────────────────────────────────────
   const addPrayerRequest = useCallback(async (content: string, category: PrayerCategory, isAnonymous: boolean) => {
@@ -742,19 +760,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deletePrayerRequest = useCallback(async (id: string) => {
     await supabase.from('prayer_responses').delete().eq('prayer_request_id', id);
-    await supabase.from('prayer_requests').delete().eq('id', id);
+    const { error } = await supabase.from('prayer_requests').delete().eq('id', id);
+    if (failIfError(error, 'delete this prayer request')) return;
     setPrayerRequests((prev) => prev.filter((p) => p.id !== id));
     setPrayerResponses((prev) => prev.filter((r) => r.prayer_request_id !== id));
-  }, []);
+  }, [failIfError]);
 
   const markPrayerAnswered = useCallback(async (id: string) => {
     const now = new Date().toISOString();
-    await supabase.from('prayer_requests').update({
+    const { error } = await supabase.from('prayer_requests').update({
       is_answered: true, answered_at: now,
     }).eq('id', id);
+    if (failIfError(error, 'mark this prayer as answered')) return;
     setPrayerRequests((prev) => prev.map((p) => p.id === id ? { ...p, is_answered: true, answered_at: now } : p));
     addToast('success', 'Praise God! Prayer marked as answered');
-  }, [addToast]);
+  }, [addToast, failIfError]);
 
   const togglePrayerResponse = useCallback(async (requestId: string, encouragement?: string) => {
     if (!user) return;
@@ -764,12 +784,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const existing = prayerResponses.find((r) => r.prayer_request_id === requestId && r.user_id === user.id);
     if (existing) {
-      await supabase.from('prayer_responses').delete().eq('id', existing.id);
+      const { error } = await supabase.from('prayer_responses').delete().eq('id', existing.id);
+      if (failIfError(error, 'remove your prayer response')) return;
       setPrayerResponses((prev) => prev.filter((r) => r.id !== existing.id));
     } else {
-      const { data: newResp } = await supabase.from('prayer_responses').insert({
+      const { data: newResp, error } = await supabase.from('prayer_responses').insert({
         prayer_request_id: requestId, user_id: user.id, content: encouragement ? sanitizeText(encouragement) : null,
       }).select().single();
+      if (failIfError(error, 'send your prayer response')) return;
       if (newResp) setPrayerResponses((prev) => [...prev, newResp]);
       const req = prayerRequests.find((p) => p.id === requestId);
       if (req && req.author_id !== user.id) {
@@ -778,7 +800,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       checkBadges();
     }
-  }, [user, prayerResponses, prayerRequests, profile, createNotification, checkBadges]);
+  }, [user, prayerResponses, prayerRequests, profile, createNotification, checkBadges, failIfError]);
 
   // ─── Event Actions ────────────────────────────────────────
   const addEvent = useCallback(async (data: Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>) => {
@@ -801,8 +823,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await supabase.from('rsvps').delete().eq('event_id', id);
     await supabase.from('event_reminders').delete().eq('event_id', id);
     await supabase.from('attendance').delete().eq('event_id', id);
-    await supabase.from('events').delete().eq('id', id);
-  }, []);
+    const { error } = await supabase.from('events').delete().eq('id', id);
+    if (failIfError(error, 'delete this event')) return;
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+  }, [failIfError]);
 
   const updateEvent = useCallback(async (id: string, data: Partial<Omit<AppEvent, 'id' | 'created_by' | 'created_at' | 'rsvps'>>) => {
     const { error } = await supabase.from('events').update(data).eq('id', id);
@@ -815,38 +839,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const existing = rsvps.find((r) => r.event_id === eventId && r.user_id === user.id);
     if (existing) {
-      await supabase.from('rsvps').update({ status }).eq('id', existing.id);
+      const { error } = await supabase.from('rsvps').update({ status }).eq('id', existing.id);
+      if (failIfError(error, 'update your RSVP')) return;
       setRsvps((prev) => prev.map((r) => r.id === existing.id ? { ...r, status } : r));
     } else {
-      const { data: newRsvp } = await supabase.from('rsvps').insert({ event_id: eventId, user_id: user.id, status }).select().single();
+      const { data: newRsvp, error } = await supabase.from('rsvps').insert({ event_id: eventId, user_id: user.id, status }).select().single();
+      if (failIfError(error, 'RSVP to this event')) return;
       if (newRsvp) setRsvps((prev) => [...prev, newRsvp]);
     }
-  }, [user, rsvps]);
+  }, [user, rsvps, failIfError]);
 
   const setEventReminder = useCallback(async (eventId: string, offsetHours: number) => {
     if (!user) return;
-    await supabase.from('event_reminders').upsert({
+    const { error } = await supabase.from('event_reminders').upsert({
       user_id: user.id, event_id: eventId, remind_offset_hours: offsetHours,
     }, { onConflict: 'user_id,event_id' });
+    if (failIfError(error, 'set your reminder')) return;
     addToast('info', 'Reminder set');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const removeEventReminder = useCallback(async (eventId: string) => {
     if (!user) return;
-    await supabase.from('event_reminders').delete().eq('user_id', user.id).eq('event_id', eventId);
-  }, [user]);
+    const { error } = await supabase.from('event_reminders').delete().eq('user_id', user.id).eq('event_id', eventId);
+    failIfError(error, 'remove your reminder');
+  }, [user, failIfError]);
 
   const recordAttendance = useCallback(async (eventId: string, userIds: string[]) => {
     if (!user) return;
     const date = new Date().toISOString().split('T')[0];
     const rows = userIds.map((uid) => ({ event_id: eventId, user_id: uid, date, recorded_by: user.id }));
-    await supabase.from('attendance').upsert(rows, { onConflict: 'event_id,user_id' });
+    const { error: attErr } = await supabase.from('attendance').upsert(rows, { onConflict: 'event_id,user_id' });
+    if (failIfError(attErr, 'record attendance')) return;
     // Update last_attended for each user
     for (const uid of userIds) {
-      await supabase.from('profiles').update({ last_attended: date }).eq('id', uid);
+      const { error } = await supabase.from('profiles').update({ last_attended: date }).eq('id', uid);
+      if (failIfError(error, 'update last-attended date')) return;
     }
     addToast('success', 'Attendance recorded');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   // ─── Bible Study Actions ──────────────────────────────────
   const addBibleStudy = useCallback(async (data: { title: string; description: string; totalDays: number; days: Omit<StudyDay, 'id' | 'study_id'>[] }) => {
@@ -877,32 +907,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await supabase.from('study_progress').delete().eq('study_id', studyId);
     await supabase.from('study_enrollments').delete().eq('study_id', studyId);
     await supabase.from('study_days').delete().eq('study_id', studyId);
-    await supabase.from('bible_studies').delete().eq('id', studyId);
+    const { error } = await supabase.from('bible_studies').delete().eq('id', studyId);
+    if (failIfError(error, 'delete this Bible study')) return;
     setBibleStudies((prev) => prev.filter((s) => s.id !== studyId));
     setStudyDays((prev) => prev.filter((d) => d.study_id !== studyId));
     setStudyEnrollments((prev) => prev.filter((e) => e.study_id !== studyId));
     setStudyProgress((prev) => prev.filter((p) => p.study_id !== studyId));
     addToast('success', 'Bible study deleted');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const enrollInStudy = useCallback(async (studyId: string) => {
     if (!user) return;
-    await supabase.from('study_enrollments').insert({ user_id: user.id, study_id: studyId });
+    const { error } = await supabase.from('study_enrollments').insert({ user_id: user.id, study_id: studyId });
+    if (failIfError(error, 'enroll in this study')) return;
     setStudyEnrollments((prev) => [...prev, { id: uid(), user_id: user.id, study_id: studyId, enrolled_at: new Date().toISOString() }]);
     addToast('success', 'Enrolled in study');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const unenrolFromStudy = useCallback(async (studyId: string) => {
     if (!user) return;
-    await supabase.from('study_enrollments').delete().eq('user_id', user.id).eq('study_id', studyId);
+    const { error } = await supabase.from('study_enrollments').delete().eq('user_id', user.id).eq('study_id', studyId);
+    if (failIfError(error, 'unenroll from this study')) return;
     setStudyEnrollments((prev) => prev.filter((e) => !(e.user_id === user.id && e.study_id === studyId)));
-  }, [user]);
+  }, [user, failIfError]);
 
   const completeStudyDay = useCallback(async (studyId: string, dayNumber: number, reflection?: string) => {
     if (!user) return;
-    const { data: progress } = await supabase.from('study_progress').upsert({
+    const { data: progress, error } = await supabase.from('study_progress').upsert({
       user_id: user.id, study_id: studyId, day_number: dayNumber, reflection: reflection ?? null,
     }, { onConflict: 'user_id,study_id,day_number' }).select().single();
+    if (failIfError(error, 'save your progress')) return;
 
     // Update local state so the day shows as completed immediately
     if (progress) {
@@ -913,7 +947,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     addToast('success', 'Day completed');
     checkBadges();
-  }, [user, addToast, checkBadges]);
+  }, [user, addToast, checkBadges, failIfError]);
 
   // ─── Gallery Actions ──────────────────────────────────────
   const addAlbum = useCallback(async (title: string, description?: string, eventId?: string) => {
@@ -925,11 +959,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (!dv.valid) { addToast('error', dv.error!); return; }
     }
 
-    await supabase.from('gallery_albums').insert({
+    const { error } = await supabase.from('gallery_albums').insert({
       title: sanitizeText(title), description: description ? sanitizeText(description) : null, event_id: eventId ?? null, created_by: user.id,
     });
+    if (failIfError(error, 'create this album')) return;
     addToast('success', 'Album created');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const uploadPhoto = useCallback(async (albumId: string, file: File, caption?: string) => {
     if (!user) return;
@@ -942,15 +977,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const { error: upErr } = await supabase.storage.from('gallery').upload(path, blob, { contentType: 'image/jpeg' });
     if (upErr) throw upErr;
     const { data } = supabase.storage.from('gallery').getPublicUrl(path);
-    await supabase.from('gallery_photos').insert({
+    const { error: insertErr } = await supabase.from('gallery_photos').insert({
       album_id: albumId, uploaded_by: user.id, image_url: data.publicUrl, caption: caption ?? null,
     });
+    if (failIfError(insertErr, 'upload this photo')) return;
     addToast('success', 'Photo uploaded');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const deletePhoto = useCallback(async (photoId: string) => {
-    await supabase.from('gallery_photos').delete().eq('id', photoId);
-  }, []);
+    const { error } = await supabase.from('gallery_photos').delete().eq('id', photoId);
+    if (failIfError(error, 'delete this photo')) return;
+    setGalleryPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  }, [failIfError]);
 
   // ─── Message Actions ──────────────────────────────────────
   const sendMessage = useCallback(async (receiverId: string, content: string) => {
@@ -961,11 +999,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!rl.valid) { addToast('error', rl.error!); return; }
     const sanitized = sanitizeText(content);
 
-    const { data: newMsg } = await supabase.from('messages').insert({ sender_id: user.id, receiver_id: receiverId, content: sanitized }).select().single();
+    const { data: newMsg, error } = await supabase.from('messages').insert({ sender_id: user.id, receiver_id: receiverId, content: sanitized }).select().single();
+    if (failIfError(error, 'send your message')) return;
     if (newMsg) setMessages((prev) => [...prev, newMsg]);
     const name = profile?.first_name ?? 'Someone';
     await createNotification(receiverId, 'message', `New message from ${name}`, content.slice(0, 100), `/messages`);
-  }, [user, profile, createNotification]);
+  }, [user, profile, createNotification, failIfError]);
 
   const getConversations = useCallback((): Conversation[] => {
     if (!user) return [];
@@ -995,7 +1034,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (unread.length === 0) return;
     const ids = unread.map((m) => m.id);
     const now = new Date().toISOString();
-    await supabase.from('messages').update({ read_at: now }).in('id', ids);
+    const { error } = await supabase.from('messages').update({ read_at: now }).in('id', ids);
+    if (error) {
+      // Don't toast — this fires automatically on view; surface in console only.
+      console.warn('markMessagesRead failed:', error);
+      return;
+    }
     setMessages((prev) => prev.map((m) => ids.includes(m.id) ? { ...m, read_at: now } : m));
   }, [user, messages]);
 
@@ -1058,15 +1102,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const fail = checks.find(c => !c.valid);
     if (fail) { addToast('error', fail.error!); return; }
 
-    const { data: newRes } = await supabase.from('resources').insert({ ...data, created_by: user.id }).select().single();
+    const { data: newRes, error } = await supabase.from('resources').insert({ ...data, created_by: user.id }).select().single();
+    if (failIfError(error, 'add this resource')) return;
     if (newRes) setResources((prev) => [newRes, ...prev]);
     addToast('success', 'Resource added');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   const deleteResource = useCallback(async (id: string) => {
-    await supabase.from('resources').delete().eq('id', id);
+    const { error } = await supabase.from('resources').delete().eq('id', id);
+    if (failIfError(error, 'delete this resource')) return;
     setResources((prev) => prev.filter((r) => r.id !== id));
-  }, []);
+  }, [failIfError]);
 
   // ─── Daily Devotional Actions ─────────────────────────────────────
   const addDevotional = useCallback(async (data: Omit<DailyDevotional, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
@@ -1098,27 +1144,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [addToast]);
 
   const deleteDevotional = useCallback(async (id: string) => {
-    await supabase.from('daily_devotionals').delete().eq('id', id);
+    const { error } = await supabase.from('daily_devotionals').delete().eq('id', id);
+    if (failIfError(error, 'delete this devotional')) return;
     setDailyDevotionals((prev) => prev.filter((d) => d.id !== id));
     addToast('success', 'Devotional deleted');
-  }, [addToast]);
+  }, [addToast, failIfError]);
 
   // ─── Notification Actions ─────────────────────────────────
   const markNotificationRead = useCallback(async (id: string) => {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    if (error) { console.warn('markNotificationRead failed:', error); return; }
     setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
   }, []);
 
   const markAllNotificationsRead = useCallback(async () => {
     if (!user) return;
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('user_id', user.id).eq('is_read', false);
+    if (failIfError(error, 'mark notifications as read')) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-  }, [user]);
+  }, [user, failIfError]);
 
   const deleteNotification = useCallback(async (id: string) => {
-    await supabase.from('notifications').delete().eq('id', id);
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (failIfError(error, 'delete this notification')) return;
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }, []);
+  }, [failIfError]);
 
   const unreadNotificationCount = notifications.filter((n) => !n.is_read).length;
 
@@ -1128,12 +1178,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const v = validateTextField(note, MAX_LENGTHS.FOLLOW_UP_NOTE, 'Note');
     if (!v.valid) { addToast('error', v.error!); return; }
 
-    const { data: newNote } = await supabase.from('follow_up_notes').insert({
+    const { data: newNote, error } = await supabase.from('follow_up_notes').insert({
       user_id: userId, leader_id: user.id, note: sanitizeText(note), status,
     }).select().single();
+    if (failIfError(error, 'save this note')) return;
     if (newNote) setFollowUpNotes((prev) => [newNote, ...prev]);
     addToast('success', 'Note saved');
-  }, [user, addToast]);
+  }, [user, addToast, failIfError]);
 
   // ─── Pod Actions ────────────────────────────────────────
   const addPod = useCallback(async (name: string, description: string | null, maxMembers: number, visibility: 'public' | 'private' = 'public') => {
@@ -1156,25 +1207,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const deletePod = useCallback(async (podId: string) => {
     await supabase.from('pod_checkins').delete().eq('pod_id', podId);
     await supabase.from('pod_members').delete().eq('pod_id', podId);
-    await supabase.from('pods').delete().eq('id', podId);
+    const { error } = await supabase.from('pods').delete().eq('id', podId);
+    if (failIfError(error, 'delete this group')) return;
     setPods((prev) => prev.filter((p) => p.id !== podId));
     setPodMembers((prev) => prev.filter((m) => m.pod_id !== podId));
     setPodCheckins((prev) => prev.filter((c) => c.pod_id !== podId));
     addToast('success', 'Pod deleted');
-  }, [addToast]);
+  }, [addToast, failIfError]);
 
   const addPodMember = useCallback(async (podId: string, userId: string, role: 'leader' | 'member' = 'member') => {
     const { data: newMember, error } = await supabase.from('pod_members').insert({
       pod_id: podId, user_id: userId, role,
     }).select().single();
-    if (error) throw error;
+    if (failIfError(error, 'add this member')) return;
     if (newMember) setPodMembers((prev) => [...prev, newMember]);
-  }, []);
+  }, [failIfError]);
 
   const removePodMember = useCallback(async (podId: string, userId: string) => {
-    await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', userId);
+    const { error } = await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', userId);
+    if (failIfError(error, 'remove this member')) return;
     setPodMembers((prev) => prev.filter((m) => !(m.pod_id === podId && m.user_id === userId)));
-  }, []);
+  }, [failIfError]);
 
   const addPodCheckin = useCallback(async (podId: string, content: string) => {
     if (!user) return;
@@ -1213,10 +1266,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const membership = podMembers.find((m) => m.pod_id === podId && m.user_id === user.id);
     if (!membership) { addToast('error', 'You are not in this pod'); return; }
     if (membership.role === 'leader') { addToast('error', 'Pod leaders cannot leave. Ask an admin to remove you.'); return; }
-    await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', user.id);
+    const { error } = await supabase.from('pod_members').delete().eq('pod_id', podId).eq('user_id', user.id);
+    if (failIfError(error, 'leave this group')) throw error;
     setPodMembers((prev) => prev.filter((m) => !(m.pod_id === podId && m.user_id === user.id)));
     addToast('success', 'You left the pod');
-  }, [user, podMembers, addToast]);
+  }, [user, podMembers, addToast, failIfError]);
 
   // ─── Guide Actions ──────────────────────────────────────
   const addGuideSection = useCallback(async (data: Omit<GuideSection, 'id' | 'created_by' | 'created_at' | 'updated_at'>) => {
@@ -1252,7 +1306,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [addToast]);
 
   const deleteGuideSection = useCallback(async (id: string) => {
-    await supabase.from('guide_sections').delete().eq('id', id);
+    const { error } = await supabase.from('guide_sections').delete().eq('id', id);
+    if (failIfError(error, 'delete this guide section')) return;
     // Refetch to re-merge with defaults
     const { data: all } = await supabase.from('guide_sections').select('*').order('display_order', { ascending: true });
     if (all && all.length > 0) {
@@ -1265,7 +1320,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setGuideSections(defaultGuideSections.map(d => ({ ...d, created_by: null, created_at: '', updated_at: '' }) as GuideSection));
     }
     addToast('success', 'Guide section deleted');
-  }, [addToast]);
+  }, [addToast, failIfError]);
 
   // ─── Context Value ────────────────────────────────────────
   const value: AppState = {
