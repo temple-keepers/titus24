@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from '@/context/AppContext';
 import Layout from '@/components/Layout';
@@ -34,6 +34,75 @@ function withEB(el: React.ReactNode) {
   return <RouteErrorBoundary>{el}</RouteErrorBoundary>;
 }
 
+function ResetPasswordScreen() {
+  const { updatePassword, signOut } = useApp();
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (pw.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    if (pw !== pw2) { setErr('Passwords don\'t match. Please try again.'); return; }
+    setBusy(true);
+    try {
+      await updatePassword(pw);
+    } catch (e: any) {
+      setErr(e?.message ?? 'Couldn\'t update your password. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--gradient-body)' }}>
+      <div className="card max-w-sm w-full space-y-5 py-10 px-7">
+        <div className="text-center">
+          <div className="text-4xl mb-3">🌷</div>
+          <h1 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
+            Welcome back, sister
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+            Choose a new password to finish signing in.
+          </p>
+        </div>
+
+        {err && (
+          <div className="px-4 py-3 rounded-2xl border text-sm font-semibold"
+            style={{ background: 'rgba(244,63,94,0.08)', borderColor: 'rgba(244,63,94,0.2)', color: '#fb7185' }}>
+            {err}
+          </div>
+        )}
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className="label">New password</label>
+            <input type="password" className="input" placeholder="At least 6 characters" value={pw}
+              onChange={(e) => setPw(e.target.value)} required minLength={6} autoFocus />
+          </div>
+          <div>
+            <label className="label">Confirm new password</label>
+            <input type="password" className="input" placeholder="Type it again" value={pw2}
+              onChange={(e) => setPw2(e.target.value)} required minLength={6} />
+          </div>
+          <button type="submit" className="btn btn-primary btn-lg w-full" disabled={busy}>
+            {busy ? 'Saving…' : 'Set new password'}
+          </button>
+        </form>
+
+        <p className="text-center text-xs" style={{ color: 'var(--color-text-muted)' }}>
+          Didn't mean to do this?{' '}
+          <button onClick={signOut} className="font-bold underline underline-offset-2" style={{ color: 'var(--color-brand)' }}>
+            Cancel and sign out
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function BannedScreen({ reason, onSignOut }: { reason: string | null; onSignOut: () => void }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--color-bg)' }}>
@@ -64,9 +133,13 @@ function BannedScreen({ reason, onSignOut }: { reason: string | null; onSignOut:
 }
 
 function AppRoutes() {
-  const { user, profile, authLoading, loading, signOut } = useApp();
+  const { user, profile, authLoading, loading, signOut, isPasswordRecovery } = useApp();
 
   if (authLoading) return <LoadingScreen />;
+
+  // Password recovery from email link — show password change screen before anything else.
+  if (isPasswordRecovery) return <ResetPasswordScreen />;
+
   if (!user) return <Auth />;
 
   // Show loading while initial data fetches (no profile yet)

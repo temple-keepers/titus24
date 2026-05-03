@@ -33,6 +33,7 @@ interface AppState {
   profile: Profile | null;
   loading: boolean;
   authLoading: boolean;
+  isPasswordRecovery: boolean;
 
   // Data
   profiles: Profile[];
@@ -71,6 +72,7 @@ interface AppState {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, firstName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 
   // Profile
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
@@ -179,6 +181,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Data state
@@ -239,9 +242,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAuthLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -546,7 +554,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
     setSession(null);
     setUser(null);
+    setIsPasswordRecovery(false);
   }, []);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+    setIsPasswordRecovery(false);
+    addToast('success', 'Password updated. You\'re all set, sister.');
+  }, [addToast]);
 
   // ─── Profile Actions ─────────────────────────────────────
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
@@ -1324,7 +1340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Context Value ────────────────────────────────────────
   const value: AppState = {
-    session, user, profile, loading, authLoading,
+    session, user, profile, loading, authLoading, isPasswordRecovery,
     profiles, posts, comments, reactions,
     prayerRequests, prayerResponses,
     events, rsvps, eventReminders,
@@ -1334,7 +1350,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     badges, userBadges, followUpNotes,
     pods, podMembers, podCheckins, guideSections,
     toasts, addToast, removeToast,
-    signIn, signUp, signOut,
+    signIn, signUp, signOut, updatePassword,
     updateProfile, uploadAvatar, updateUserRole, banUser, unbanUser, removeUser,
     addPost, deletePost, togglePin, toggleReaction, addComment, deleteComment,
     addPrayerRequest, deletePrayerRequest, markPrayerAnswered, togglePrayerResponse,
