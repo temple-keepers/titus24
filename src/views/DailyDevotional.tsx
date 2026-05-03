@@ -59,13 +59,18 @@ export default function DailyDevotional() {
     if (devotionalRead || !user) return;
 
     try {
-      // Check if already read today using database (rate limiting)
-      const { data: existing } = await supabase
+      // Check if already read today (idempotent; tolerates a silent select failure
+      // because the upsert below is the source of truth).
+      const { data: existing, error: checkError } = await supabase
         .from('devotional_reads')
-        .select('*')
+        .select('user_id')
         .eq('user_id', user.id)
         .eq('date', today)
         .maybeSingle();
+
+      if (checkError) {
+        console.warn('devotional_reads pre-check failed (continuing to upsert):', checkError);
+      }
 
       if (existing) {
         setDevotionalRead(true);
@@ -73,19 +78,34 @@ export default function DailyDevotional() {
         return;
       }
 
-      // Insert read record
+      // Upsert — survives duplicate races with the first select and avoids a
+      // unique-constraint blow-up if the user double-taps.
       const { error } = await supabase
         .from('devotional_reads')
-        .insert({ user_id: user.id, date: today });
+        .upsert(
+          { user_id: user.id, date: today },
+          { onConflict: 'user_id,date', ignoreDuplicates: true },
+        );
 
-      if (error) throw error;
+      if (error) {
+        const detail = (error as { message?: string }).message;
+        // If the row is already there because of a unique constraint, treat it
+        // as already-read instead of an error.
+        if (detail && /duplicate key|unique/i.test(detail)) {
+          setDevotionalRead(true);
+          addToast('info', 'Already marked as read today');
+          return;
+        }
+        throw error;
+      }
 
       setDevotionalRead(true);
       await awardPoints('devotional_read');
       addToast('success', 'Devotional read! +5 points');
     } catch (err) {
+      const detail = (err as { message?: string })?.message ?? 'unknown error';
       console.error('Failed to mark devotional as read:', err);
-      addToast('error', 'Failed to record devotional read');
+      addToast('error', `Couldn't record your devotional. ${detail}`);
     }
   };
 
