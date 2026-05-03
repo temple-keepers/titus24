@@ -14,6 +14,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
+    // PKCE keeps recovery/confirmation tokens in the query string (?code=...)
+    // instead of the URL hash. Required for HashRouter apps — otherwise
+    // HashRouter and Supabase fight over the hash and PASSWORD_RECOVERY
+    // never fires.
+    flowType: 'pkce',
   },
   realtime: {
     params: {
