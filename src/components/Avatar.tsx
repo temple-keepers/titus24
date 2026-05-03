@@ -1,51 +1,40 @@
-import { useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '../lib/cn';
 
 interface Props {
-  src: string | null;
-  name: string;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  url?: string | null;
+  name?: string | null;
+  size?: number;
   className?: string;
 }
 
-const sizes = {
-  xs: 'w-7 h-7 text-[10px]',
-  sm: 'w-10 h-10 text-sm',
-  md: 'w-[52px] h-[52px] text-base',
-  lg: 'w-[76px] h-[76px] text-xl',
-  xl: 'w-[100px] h-[100px] text-2xl',
-};
+function initials(name?: string | null): string {
+  if (!name) return '✧';
+  const parts = name.trim().split(/\s+/);
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase()).join('');
+}
 
-export default function Avatar({ src, name, size = 'md', className }: Props) {
-  const [error, setError] = useState(false);
-  const initials = name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  if (!src || error) {
+export function Avatar({ url, name, size = 40, className }: Props) {
+  const dim = { width: size, height: size, fontSize: Math.round(size * 0.4) };
+  if (url) {
     return (
-      <div
-        className={cn(
-          'rounded-full flex items-center justify-center font-display font-bold text-white flex-shrink-0',
-          sizes[size],
-          className
-        )}
-        style={{ background: 'var(--gradient-brand)' }}
-      >
-        {initials}
-      </div>
+      <img
+        src={url}
+        alt={name ?? 'sister'}
+        style={dim}
+        className={cn('rounded-full object-cover ring-2 ring-white shadow-soft', className)}
+      />
     );
   }
-
   return (
-    <img
-      src={src}
-      alt={name}
-      onError={() => setError(true)}
-      className={cn('avatar', `avatar-${size}`, className)}
-    />
+    <div
+      aria-label={name ?? 'sister'}
+      style={{ ...dim, background: 'linear-gradient(135deg, var(--soft-pink), var(--rose))' }}
+      className={cn(
+        'flex items-center justify-center rounded-full font-display font-semibold text-white shadow-soft select-none',
+        className
+      )}
+    >
+      {initials(name)}
+    </div>
   );
 }

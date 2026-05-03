@@ -1,79 +1,35 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
-interface Props {
-  children: ReactNode;
-}
+interface State { error: Error | null }
 
-interface State {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+export class ErrorBoundary extends Component<{ children: ReactNode; fallback?: ReactNode }, State> {
+  state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // eslint-disable-next-line no-console
+    console.error('[ErrorBoundary]', error, info);
   }
-
-  handleReset = () => {
-    this.setState({ hasError: false, error: null });
-    window.location.reload();
-  };
 
   render() {
-    if (this.state.hasError) {
+    if (this.state.error) {
+      if (this.props.fallback) return this.props.fallback;
       return (
-        <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--color-bg)' }}>
-          <div className="card max-w-md w-full text-center space-y-6 py-12">
-            <AlertTriangle
-              size={64}
-              style={{ color: 'var(--color-brand)', margin: '0 auto' }}
-            />
-            <div>
-              <h1 className="font-display text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
-                Something went wrong
-              </h1>
-              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-                We're sorry for the inconvenience. Please try refreshing the page.
-              </p>
-            </div>
-            {this.state.error && (
-              <details className="text-left">
-                <summary className="text-xs cursor-pointer" style={{ color: 'var(--color-text-muted)' }}>
-                  Technical details
-                </summary>
-                <pre className="text-xs mt-2 p-3 rounded-lg overflow-auto" style={{
-                  background: 'var(--color-bg-raised)',
-                  color: 'var(--color-text-secondary)',
-                  maxHeight: '200px',
-                }}>
-                  {this.state.error.toString()}
-                  {this.state.error.stack}
-                </pre>
-              </details>
-            )}
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={this.handleReset}
-            >
-              <RefreshCw size={18} /> Reload Page
-            </button>
-          </div>
+        <div className="mx-auto my-12 max-w-md rounded-3xl bg-surface border border-app p-6 text-center">
+          <h2 className="font-display text-xl mb-2">Something went sideways, sister.</h2>
+          <p className="text-sm text-app-muted mb-4">{this.state.error.message}</p>
+          <button
+            onClick={() => this.setState({ error: null })}
+            className="rounded-2xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-600"
+          >
+            Try again
+          </button>
         </div>
       );
     }
-
     return this.props.children;
   }
 }
-
-export default ErrorBoundary;

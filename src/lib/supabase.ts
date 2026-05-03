@@ -1,28 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    'Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+    'Missing Supabase env vars. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local.'
   );
 }
 
+/**
+ * Untyped client. Hand-typing the full schema for the rebuild is high-cost
+ * and brittle; the screens cast query results into the row types in
+ * `database.types.ts`. Run `supabase gen types` later to drop generated
+ * types in and re-add the `<Database>` parameter for full type safety.
+ */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
+    flowType: 'pkce',
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
-    // PKCE keeps recovery/confirmation tokens in the query string (?code=...)
-    // instead of the URL hash. Required for HashRouter apps — otherwise
-    // HashRouter and Supabase fight over the hash and PASSWORD_RECOVERY
-    // never fires.
-    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
   },
   realtime: {
-    params: {
-      eventsPerSecond: 10,
-    },
+    params: { eventsPerSecond: 10 },
   },
 });

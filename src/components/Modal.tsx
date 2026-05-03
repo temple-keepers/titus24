@@ -1,74 +1,50 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { cn } from '../lib/cn';
 
 interface Props {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
   title?: string;
-  children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
+  children: ReactNode;
+  className?: string;
 }
 
-const widths = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
-};
-
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }: Props) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-
+export function Modal({ open, onClose, title, children, className }: Props) {
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
     };
-    if (isOpen) window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [open, onClose]);
 
-  if (!isOpen) return null;
-
+  if (!open) return null;
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" />
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true">
+      <button
+        aria-label="Close"
+        className="absolute inset-0 bg-black/40 animate-fade-in"
+        onClick={onClose}
+      />
       <div
-        className={`relative w-full ${widths[size]} rounded-t-2xl sm:rounded-2xl animate-slide-up overflow-hidden`}
-        style={{
-          background: 'var(--color-bg-raised)',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        {title && (
-          <div
-            className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: '1px solid var(--color-border)' }}
-          >
-            <h3 className="font-display text-lg font-semibold" style={{ color: 'var(--color-text)' }}>
-              {title}
-            </h3>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl transition-colors hover:bg-white/5"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              <X size={18} />
-            </button>
-          </div>
+        className={cn(
+          'relative z-10 w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-surface p-5 shadow-soft-lg animate-slide-up',
+          className
         )}
-        <div className="p-5 max-h-[70vh] overflow-y-auto">{children}</div>
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-xl">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-2 hover:bg-surface-raised">
+            <X size={20} />
+          </button>
+        </div>
+        {children}
       </div>
     </div>
   );

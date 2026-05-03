@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --rose: #E8668A;
+  --soft-pink: #F78DA7;
+  --pink-wash: #FCE7EE;
+  --sage: #AAC4AA;
+  --sage-wash: #EDF3ED;
+  --cream: #FFFBF9;
+  --wine: #3D1F2A;
+  --muted: #8B6F75;
+  --gold: #C9A45A;
+
+  --bg: var(--cream);
+  --surface: #FFFFFF;
+  --surface-raised: #FFF5F1;
+  --text: var(--wine);
+  --text-muted: var(--muted);
+  --border: rgba(61, 31, 42, 0.08);
+}
+
+[data-theme="dark"] {
+  --bg: #1A1215;
+  --surface: #241A1E;
+  --surface-raised: #2E2226;
+  --text: #FBE9EE;
+  --text-muted: #C7A8B0;
+  --border: rgba(251, 233, 238, 0.08);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Nunito', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+button { font-family: inherit; }
+
+/* utility helpers using tokens */
+.bg-app { background-color: var(--bg); }
+.bg-surface { background-color: var(--surface); }
+.bg-surface-raised { background-color: var(--surface-raised); }
+.text-app { color: var(--text); }
+.text-app-muted { color: var(--text-muted); }
+.border-app { border-color: var(--border); }
+
+.scripture {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  color: var(--wine);
+}
+
+/* focus ring */
+*:focus-visible {
+  outline: 2px solid var(--rose);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* hide scrollbars on horizontal scrollers */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
