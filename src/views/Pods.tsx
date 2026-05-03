@@ -457,7 +457,7 @@ function GroupDetail({
                         {post.user_id === userId ? 'You' : author?.first_name}
                       </span>
                       {author?.role === 'admin' || author?.role === 'elder' ? (
-                        <span className="badge badge-gold text-[8px]">{author.role === 'admin' ? 'Admin' : 'Elder'}</span>
+                        <span className="badge badge-gold text-[8px]">Elder</span>
                       ) : null}
                       <span className="text-[10px] ml-auto" style={{ color: 'var(--color-text-faint)' }}>
                         {timeAgo(post.created_at)}

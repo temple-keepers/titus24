@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Avatar from '@/components/Avatar';
 import EmptyState from '@/components/EmptyState';
@@ -10,24 +10,26 @@ export default function Messages() {
   const { user, profiles, messages, sendMessage, getConversations, markMessagesRead } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
   const [newMsg, setNewMsg] = useState('');
   const msgEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-open conversation when arriving with state.toUserId or ?to=userId
+  // Auto-open conversation when arriving with state.toUserId or ?to=userId.
+  // Clear router state through the router (not raw window.history) so the
+  // dep array sees a real change and this effect doesn't re-fire later when
+  // `profiles`/`user` are reassigned (realtime updates, token refresh, etc.).
   useEffect(() => {
-    const stateToId = (location.state as any)?.toUserId;
+    const stateToId = (location.state as { toUserId?: string } | null)?.toUserId;
     const paramToId = searchParams.get('to');
     const toId = stateToId || paramToId;
 
     if (toId && profiles.some((p) => p.id === toId && p.id !== user?.id)) {
       setSelectedPartner(toId);
-      // Clean up URL params if they were used
       if (paramToId) setSearchParams({}, { replace: true });
-      // Clear location state so back button works naturally
-      if (stateToId) window.history.replaceState({}, '');
+      if (stateToId) navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.state, searchParams, profiles, user]);
+  }, [location.state, location.pathname, searchParams, profiles, user, navigate, setSearchParams]);
 
   const conversations = getConversations();
 

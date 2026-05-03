@@ -179,17 +179,23 @@ export default function Home() {
         });
       });
 
-    // Upcoming events within 3 days
-    const threeDaysFromNow = new Date();
+    // Upcoming events within 3 days — parse `e.date` (a "YYYY-MM-DD" string) as
+    // local midnight, and bound the window with local-midnight today, so users
+    // east of UTC (and anyone past UTC midnight) still see today's events.
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const threeDaysFromNow = new Date(todayMidnight);
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+    const parseEventDate = (s: string) => {
+      const [y, m, d] = s.substring(0, 10).split('-').map(Number);
+      return new Date(y, (m ?? 1) - 1, d ?? 1);
+    };
     events
       .filter((e) => {
-        const eventDate = new Date(e.date);
-        return eventDate >= now && eventDate <= threeDaysFromNow;
+        const eventDate = parseEventDate(e.date);
+        return eventDate >= todayMidnight && eventDate <= threeDaysFromNow;
       })
       .forEach((e) => {
-        const eventDate = new Date(e.date);
-        const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const eventDate = parseEventDate(e.date);
         const daysAway = Math.ceil((eventDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24));
         const timeLabel = daysAway <= 0 ? 'Today' : daysAway === 1 ? 'Tomorrow' : `In ${daysAway} days`;
         items.push({

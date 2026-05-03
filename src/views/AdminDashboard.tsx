@@ -10,9 +10,9 @@ import {
   FileText, Heart, Users, Calendar, ChevronRight,
   Pin, Trash2, ArrowLeft, HelpCircle, BookOpen,
   Library, Megaphone, Plus, X, HeartHandshake, Eye, Mail, Send, Pencil, Download,
-  PartyPopper, ChevronLeft, Cake, Gift,
+  PartyPopper, ChevronLeft,
 } from 'lucide-react';
-import { startOfMonth, endOfMonth, getDay, getDaysInMonth, format, addMonths, subMonths } from 'date-fns';
+import { startOfMonth, getDay, getDaysInMonth, format, addMonths, subMonths } from 'date-fns';
 import type { FollowUpStatus, ResourceCategory, ResourceType, MentorAssignment, MentorRequest, Pod, PodMember, GuideSectionCategory, EmailAudience, EmailLog } from '@/types';
 
 type AdminSection =
