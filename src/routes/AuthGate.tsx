@@ -15,7 +15,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const { session, profile, loading, recoveryMode } = useAuth();
   const location = useLocation();
 
-  if (recoveryMode) return <SetNewPassword />;
+  // Reset password flow: force the SetNewPassword screen if we're on the
+  // dedicated reset-password route, OR if the URL still carries a
+  // type=recovery query/hash marker. This is the robust fallback for
+  // the case where supabase-js never fires PASSWORD_RECOVERY.
+  const looksLikeRecovery =
+    location.pathname.startsWith('/reset-password') ||
+    location.search.includes('type=recovery') ||
+    location.hash.includes('type=recovery');
+
+  if (recoveryMode || looksLikeRecovery) return <SetNewPassword />;
 
   if (loading) return <LoadingPage />;
 
@@ -24,6 +33,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       location.pathname.startsWith('/sign-in') ||
       location.pathname.startsWith('/sign-up') ||
       location.pathname.startsWith('/forgot-password') ||
+      location.pathname.startsWith('/reset-password') ||
       location.pathname.startsWith('/welcome');
     if (!onPublicRoute) return <Navigate to="/welcome" replace state={{ from: location }} />;
     return <>{children}</>;

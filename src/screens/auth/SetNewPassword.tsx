@@ -35,6 +35,8 @@ export default function SetNewPassword() {
       return;
     }
     clearRecoveryMode();
+    // Navigate away from /reset-password so AuthGate's URL-based
+    // recovery check stops re-rendering this screen.
     nav('/', { replace: true });
   }
 
@@ -72,6 +74,9 @@ export default function SetNewPassword() {
           onClick={async () => {
             clearRecoveryMode();
             await signOut();
+            // Move off /reset-password so AuthGate doesn't bounce us
+            // straight back into the SetNewPassword screen.
+            nav('/sign-in', { replace: true });
           }}
           className="block w-full text-center text-xs text-app-muted hover:text-app"
         >

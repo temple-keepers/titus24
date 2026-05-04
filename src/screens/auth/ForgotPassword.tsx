@@ -17,9 +17,12 @@ export default function ForgotPassword() {
     setError(null);
     setBusy(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      // PKCE flow returns ?code=… on this URL; AuthProvider's auth listener
-      // sees PASSWORD_RECOVERY and pushes the user to SetNewPassword.
-      redirectTo: `${window.location.origin}/`,
+      // Land on a dedicated route that ALWAYS forces the SetNewPassword
+      // screen on arrival, regardless of whether supabase-js fires the
+      // PASSWORD_RECOVERY event. The event has been unreliable with PKCE
+      // because Supabase's verify endpoint can strip the type=recovery
+      // marker during its redirect — relying on the URL is more robust.
+      redirectTo: `${window.location.origin}/reset-password`,
     });
     setBusy(false);
     if (error) {

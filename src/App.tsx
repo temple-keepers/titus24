@@ -9,6 +9,7 @@ import { AppShell } from './layout/AppShell';
 import SignIn from './screens/auth/SignIn';
 import SignUp from './screens/auth/SignUp';
 import ForgotPassword from './screens/auth/ForgotPassword';
+import SetNewPassword from './screens/auth/SetNewPassword';
 import Welcome from './screens/welcome/Welcome';
 
 import Home from './screens/member/Home';
@@ -66,6 +67,10 @@ export default function App() {
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
+                {/* /reset-password is gated by AuthGate which short-circuits to
+                    SetNewPassword when the path matches; this route entry is a
+                    fallback in case AuthGate's children render. */}
+                <Route path="/reset-password" element={<SetNewPassword />} />
 
                 {/* Member shell */}
                 <Route element={<AppShell />}>
