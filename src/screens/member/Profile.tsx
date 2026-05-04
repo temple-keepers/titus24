@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { LogOut, MessageCircle, Sun, Moon } from 'lucide-react';
+import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin } from 'lucide-react';
 import { Card, ScripturePill, SectionTitle } from '../../components/Card';
 import { Input, Textarea } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -8,12 +8,21 @@ import { Avatar } from '../../components/Avatar';
 import { LoadingPage } from '../../components/LoadingPage';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
-import { failIfError } from '../../lib/errors';
+import { failIfError, mapAuthError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { getProfile } from '../../data/queries';
-import type { Profile as ProfileT } from '../../lib/database.types';
+import type { MaritalStatus, Profile as ProfileT } from '../../lib/database.types';
 import { useTheme } from '../../theme/useTheme';
 import { isLeadership, publicRole } from '../../lib/roles';
+import { cn } from '../../lib/cn';
+
+const MARITAL_OPTIONS: Array<{ value: MaritalStatus | ''; label: string }> = [
+  { value: '', label: 'Prefer not to say' },
+  { value: 'single', label: 'Single' },
+  { value: 'married', label: 'Married' },
+  { value: 'divorced', label: 'Divorced' },
+  { value: 'widowed', label: 'Widowed' },
+];
 
 export default function Profile() {
   const { id } = useParams<{ id?: string }>();
@@ -40,7 +49,17 @@ export default function Profile() {
 
   if (loading || !target) return <LoadingPage />;
 
-  if (isOwn) return <OwnProfileEditor profile={target} onSaved={refreshProfile} signOut={signOut} theme={theme} toggle={toggle} addToast={addToast} />;
+  if (isOwn) {
+    return (
+      <OwnProfileEditor
+        profile={target}
+        onSaved={refreshProfile}
+        signOut={signOut}
+        theme={theme}
+        toggle={toggle}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -49,7 +68,9 @@ export default function Profile() {
           <Avatar size={84} url={target.avatar_url} name={target.display_name ?? target.first_name} />
           <div className="flex-1">
             <h1 className="font-display text-3xl">{target.display_name ?? target.first_name}</h1>
-            <p className="text-sm text-app-muted">{[target.city, target.country].filter(Boolean).join(', ')}</p>
+            <p className="text-sm text-app-muted">
+              {[target.city, target.country].filter(Boolean).join(', ')}
+            </p>
             {isLeadership(target.role) && (
               <span className="mt-2 inline-block rounded-full bg-gold-400/20 px-2 py-1 text-[11px] font-semibold text-gold-600">
                 {publicRole(target.role)}
@@ -82,30 +103,38 @@ export default function Profile() {
   );
 }
 
+// ─── Own profile editor ──────────────────────────────────────────────
+
 function OwnProfileEditor({
   profile,
   onSaved,
   signOut,
   theme,
   toggle,
-  addToast,
 }: {
   profile: ProfileT;
-  onSaved: () => void;
+  onSaved: () => Promise<void> | void;
   signOut: () => Promise<void>;
   theme: 'light' | 'dark';
   toggle: () => void;
-  addToast: (t: { kind: 'success' | 'error' | 'info'; title: string; body?: string }) => void;
 }) {
+  const { addToast } = useToast();
   const [first, setFirst] = useState(profile.first_name ?? '');
   const [last, setLast] = useState(profile.last_name ?? '');
   const [display, setDisplay] = useState(profile.display_name ?? '');
+  const [avatar, setAvatar] = useState(profile.avatar_url ?? '');
   const [city, setCity] = useState(profile.city ?? '');
   const [country, setCountry] = useState(profile.country ?? '');
+  const [area, setArea] = useState(profile.area ?? '');
+  const [phone, setPhone] = useState(profile.phone_number ?? '');
   const [about, setAbout] = useState(profile.about ?? '');
   const [verse, setVerse] = useState(profile.favourite_verse ?? '');
   const [prayer, setPrayer] = useState(profile.prayer_focus ?? '');
-  const [avatar, setAvatar] = useState(profile.avatar_url ?? '');
+  const [marital, setMarital] = useState<MaritalStatus | ''>(profile.marital_status ?? '');
+  const [husband, setHusband] = useState(profile.husband_name ?? '');
+  const [birthday, setBirthday] = useState(profile.birthday ?? '');
+  const [birthdayVisible, setBirthdayVisible] = useState<boolean>(profile.birthday_visible ?? false);
+  const [anniversary, setAnniversary] = useState(profile.anniversary ?? '');
   const [busy, setBusy] = useState(false);
 
   async function save(e: FormEvent) {
@@ -117,22 +146,30 @@ function OwnProfileEditor({
         first_name: first.trim() || null,
         last_name: last.trim() || null,
         display_name: display.trim() || null,
+        avatar_url: avatar.trim() || null,
         city: city.trim() || null,
         country: country.trim() || null,
+        area: area.trim() || null,
+        phone_number: phone.trim() || null,
         about: about.trim() || null,
         favourite_verse: verse.trim() || null,
         prayer_focus: prayer.trim() || null,
-        avatar_url: avatar.trim() || null,
+        marital_status: marital || null,
+        husband_name: husband.trim() || null,
+        birthday: birthday || null,
+        birthday_visible: birthdayVisible,
+        anniversary: anniversary || null,
       })
       .eq('id', profile.id);
     setBusy(false);
     if (failIfError(error, 'save your profile', addToast)) return;
     addToast({ kind: 'success', title: 'Profile saved' });
-    onSaved();
+    await onSaved();
   }
 
   return (
-    <form onSubmit={save} className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-2xl space-y-4">
+      {/* Header card */}
       <Card>
         <div className="flex items-center gap-4">
           <Avatar size={72} url={avatar || profile.avatar_url} name={display || first} />
@@ -140,35 +177,279 @@ function OwnProfileEditor({
             <h1 className="font-display text-2xl">Your profile</h1>
             <p className="text-sm text-app-muted">Tell your sisters who you are.</p>
           </div>
-          <button type="button" onClick={toggle} className="rounded-full p-2 hover:bg-surface-raised" aria-label="Toggle theme">
+          <button
+            type="button"
+            onClick={toggle}
+            className="rounded-full p-2 hover:bg-surface-raised"
+            aria-label="Toggle theme"
+          >
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
       </Card>
+
+      <form onSubmit={save} className="space-y-4">
+        {/* Basics */}
+        <Card>
+          <SectionTitle>Basics</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="First name" value={first} onChange={(e) => setFirst(e.target.value)} />
+            <Input label="Last name" value={last} onChange={(e) => setLast(e.target.value)} />
+            <Input
+              label="Display name"
+              value={display}
+              onChange={(e) => setDisplay(e.target.value)}
+              hint="What sisters see in posts and messages."
+            />
+            <Input
+              label="Avatar URL"
+              value={avatar}
+              onChange={(e) => setAvatar(e.target.value)}
+              hint="Paste a link to your photo for now."
+            />
+          </div>
+        </Card>
+
+        {/* Where */}
+        <Card>
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2">
+              <MapPin size={16} className="text-brand-500" /> Where you are
+            </span>
+          </SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} />
+            <Input label="Country" value={country} onChange={(e) => setCountry(e.target.value)} />
+            <Input
+              label="Area / neighbourhood"
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              hint="Optional. Helpful for local meetups."
+            />
+            <Input
+              label="Phone number"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              hint="Only visible to leadership."
+            />
+          </div>
+        </Card>
+
+        {/* About */}
+        <Card>
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2">
+              <Heart size={16} className="text-brand-500" /> About you
+            </span>
+          </SectionTitle>
+          <Textarea
+            label="About"
+            value={about}
+            onChange={(e) => setAbout(e.target.value)}
+            rows={4}
+          />
+          <div className="h-3" />
+          <Input
+            label="Favourite verse"
+            value={verse}
+            onChange={(e) => setVerse(e.target.value)}
+          />
+          <div className="h-3" />
+          <Textarea
+            label="Prayer focus"
+            value={prayer}
+            onChange={(e) => setPrayer(e.target.value)}
+            rows={3}
+          />
+        </Card>
+
+        {/* Life details */}
+        <Card>
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2">
+              <Cake size={16} className="text-brand-500" /> Life details
+            </span>
+          </SectionTitle>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-app-muted">
+                Marital status
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {MARITAL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value || 'none'}
+                    type="button"
+                    onClick={() => setMarital(opt.value)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-semibold',
+                      marital === opt.value
+                        ? 'bg-brand-500 text-white border-brand-500'
+                        : 'border-app text-app-muted'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </label>
+
+            {marital === 'married' && (
+              <Input
+                label="Husband's name"
+                value={husband}
+                onChange={(e) => setHusband(e.target.value)}
+              />
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Birthday"
+                type="date"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+              />
+              <Input
+                label="Wedding anniversary"
+                type="date"
+                value={anniversary}
+                onChange={(e) => setAnniversary(e.target.value)}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={birthdayVisible}
+                onChange={(e) => setBirthdayVisible(e.target.checked)}
+              />
+              Show my birthday on the celebrations calendar
+            </label>
+          </div>
+        </Card>
+
+        <div className="flex flex-wrap justify-between gap-2">
+          <Button type="submit" loading={busy}>
+            Save changes
+          </Button>
+        </div>
+      </form>
+
+      {/* Account & security */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="First name" name="first_name" value={first} onChange={(e) => setFirst(e.target.value)} />
-          <Input label="Last name" name="last_name" value={last} onChange={(e) => setLast(e.target.value)} />
-          <Input label="Display name" name="display_name" value={display} onChange={(e) => setDisplay(e.target.value)} />
-          <Input label="City" name="city" value={city} onChange={(e) => setCity(e.target.value)} />
-          <Input label="Country" name="country" value={country} onChange={(e) => setCountry(e.target.value)} />
-          <Input label="Avatar URL" name="avatar_url" value={avatar} onChange={(e) => setAvatar(e.target.value)} />
+        <SectionTitle>
+          <span className="inline-flex items-center gap-2">
+            <KeyRound size={16} className="text-brand-500" /> Account & security
+          </span>
+        </SectionTitle>
+        <p className="mb-3 text-sm">
+          <span className="text-app-muted">Email:</span>{' '}
+          <span className="font-semibold inline-flex items-center gap-1">
+            <Mail size={14} /> {profile.email}
+          </span>
+        </p>
+        <ChangePasswordForm />
+        <div className="mt-4 border-t border-app pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            leadingIcon={<LogOut size={16} />}
+            onClick={signOut}
+          >
+            Sign out
+          </Button>
         </div>
       </Card>
-      <Card>
-        <SectionTitle>About you</SectionTitle>
-        <Textarea label="About" name="about" value={about} onChange={(e) => setAbout(e.target.value)} />
-        <div className="h-3" />
-        <Input label="Favourite verse" name="verse" value={verse} onChange={(e) => setVerse(e.target.value)} />
-        <div className="h-3" />
-        <Textarea label="Prayer focus" name="prayer" value={prayer} onChange={(e) => setPrayer(e.target.value)} />
-      </Card>
-      <div className="flex justify-between gap-2">
-        <Button type="submit" loading={busy}>Save changes</Button>
-        <Button type="button" variant="ghost" leadingIcon={<LogOut size={16} />} onClick={signOut}>
-          Sign out
-        </Button>
-      </div>
+    </div>
+  );
+}
+
+// ─── Change password ─────────────────────────────────────────────────
+
+function ChangePasswordForm() {
+  const { addToast } = useToast();
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (next.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (next !== confirm) {
+      setError('New passwords do not match.');
+      return;
+    }
+    setBusy(true);
+
+    // Re-verify current password before changing — supabase doesn't have a
+    // dedicated "verify password" call, so we sign in again with the
+    // existing session's email and the supplied current password.
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user?.email) {
+      setBusy(false);
+      setError('Could not load your account email.');
+      return;
+    }
+    const verify = await supabase.auth.signInWithPassword({
+      email: u.user.email,
+      password: current,
+    });
+    if (verify.error) {
+      setBusy(false);
+      setError('Your current password is not correct.');
+      return;
+    }
+
+    const { error: updErr } = await supabase.auth.updateUser({ password: next });
+    setBusy(false);
+    if (updErr) {
+      setError(mapAuthError(updErr));
+      return;
+    }
+    setCurrent('');
+    setNext('');
+    setConfirm('');
+    addToast({ kind: 'success', title: 'Password updated' });
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <Input
+        label="Current password"
+        type="password"
+        autoComplete="current-password"
+        required
+        value={current}
+        onChange={(e) => setCurrent(e.target.value)}
+      />
+      <Input
+        label="New password"
+        type="password"
+        autoComplete="new-password"
+        required
+        value={next}
+        onChange={(e) => setNext(e.target.value)}
+        hint="At least 8 characters."
+      />
+      <Input
+        label="Confirm new password"
+        type="password"
+        autoComplete="new-password"
+        required
+        value={confirm}
+        onChange={(e) => setConfirm(e.target.value)}
+      />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <Button type="submit" loading={busy} variant="secondary">
+        Change password
+      </Button>
     </form>
   );
 }

@@ -9,6 +9,7 @@ import { AppShell } from './layout/AppShell';
 import SignIn from './screens/auth/SignIn';
 import SignUp from './screens/auth/SignUp';
 import ForgotPassword from './screens/auth/ForgotPassword';
+import Welcome from './screens/welcome/Welcome';
 
 import Home from './screens/member/Home';
 import Devotional from './screens/member/Devotional';
@@ -60,7 +61,8 @@ export default function App() {
             <InstallPrompt />
             <AuthGate>
               <Routes>
-                {/* Auth routes */}
+                {/* Public + auth routes */}
+                <Route path="/welcome" element={<Welcome />} />
                 <Route path="/sign-in" element={<SignIn />} />
                 <Route path="/sign-up" element={<SignUp />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />

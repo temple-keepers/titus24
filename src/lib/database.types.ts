@@ -9,6 +9,7 @@
 export type Role = 'member' | 'elder' | 'admin';
 export type Status = 'active' | 'banned' | 'removed';
 export type Theme = 'light' | 'dark';
+export type MaritalStatus = 'single' | 'married' | 'divorced' | 'widowed';
 
 export interface Profile {
   id: string;
@@ -29,6 +30,10 @@ export interface Profile {
   banned_reason: string | null;
   birthday: string | null;
   anniversary: string | null;
+  phone_number: string | null;
+  marital_status: MaritalStatus | null;
+  husband_name: string | null;
+  birthday_visible: boolean;
   created_at: string;
 }
 

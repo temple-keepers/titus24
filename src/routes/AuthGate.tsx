@@ -20,11 +20,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (loading) return <LoadingPage />;
 
   if (!session) {
-    const onAuthRoute =
+    const onPublicRoute =
       location.pathname.startsWith('/sign-in') ||
       location.pathname.startsWith('/sign-up') ||
-      location.pathname.startsWith('/forgot-password');
-    if (!onAuthRoute) return <Navigate to="/sign-in" replace state={{ from: location }} />;
+      location.pathname.startsWith('/forgot-password') ||
+      location.pathname.startsWith('/welcome');
+    if (!onPublicRoute) return <Navigate to="/welcome" replace state={{ from: location }} />;
     return <>{children}</>;
   }
 
