@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Calendar, MessageCircle, Image as ImageIcon, Library, Users, Award, HandHeart, HelpCircle, Heart, Settings, Search, Bell } from 'lucide-react';
+import { BookOpen, Calendar, MessageCircle, Image as ImageIcon, Library, Users, Award, HandHeart, HelpCircle, Heart, Settings, Search, Bell, Shield } from 'lucide-react';
 import { Card } from '../../components/Card';
+import { useAuth } from '../../auth/AuthProvider';
+import { isAdmin } from '../../lib/roles';
 
 const TILES = [
   { to: '/devotional', label: 'Devotional', Icon: BookOpen },
@@ -21,6 +23,9 @@ const TILES = [
 ];
 
 export default function More() {
+  const { profile } = useAuth();
+  const showAdmin = isAdmin(profile?.role);
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="font-display text-3xl">More</h1>
@@ -33,6 +38,14 @@ export default function More() {
             </Card>
           </Link>
         ))}
+        {showAdmin && (
+          <Link to="/admin">
+            <Card className="flex flex-col items-center gap-2 py-5 hover:bg-surface-raised ring-1 ring-brand-200">
+              <span className="text-brand-600"><Shield size={22} /></span>
+              <span className="text-xs font-semibold text-center text-brand-700">Admin</span>
+            </Card>
+          </Link>
+        )}
       </div>
     </div>
   );
