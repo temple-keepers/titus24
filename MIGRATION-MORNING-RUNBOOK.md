@@ -1,193 +1,141 @@
-# Morning Runbook — Migrating to the new Supabase project
+# Migration — DONE overnight via Supabase MCP
 
-Plain English. Read this top to bottom before doing anything.
+**Status: complete.** All data migrated from the old project
+(`nbkvtvposonkeuufplzt`) to the new one (`rjgclzvzawsqdlmhemnf`)
+on 2026-05-04 while you slept.
 
-## What we're doing
+## What got moved
 
-Bringing the **10 sisters, their passwords, and all their content** (posts,
-prayers, events, devotionals, groups, messages, etc.) from the old Supabase
-project (`Titus 2:4`, eu-west-1) into the new one (`Titus 2:4 App`, us-east-1).
+Every row, with passwords intact:
 
-Estimated time: **30–45 minutes** start to finish, almost all of it waiting.
-
-## What you need to have ready
-
-1. Your computer with the project open at `C:\Users\sagac\Titus24`
-2. **Both Supabase project passwords** — the database password for each
-   project, NOT your Supabase login password. You can find or reset these in
-   each project's *Settings → Database → Connection string → URI*.
-3. About 45 minutes of uninterrupted time
-4. Coffee
-
-## Order of operations
-
-### Step 1 — Take a backup of the OLD project (5 min)
-
-In your browser:
-
-1. Go to [supabase.com](https://supabase.com) and open the **old** project
-   (named "Titus 2:4", URL contains `nbkvtvposonkeuufplzt`)
-2. Click **Database → Backups** in the left sidebar
-3. Click **Take backup** (or note that "Daily backups" already includes today)
-4. Confirm a recent backup exists. **Do not skip this.**
-
-### Step 2 — Get the database connection strings (3 min)
-
-For BOTH projects, in *Settings → Database → Connection string*:
-
-- Old project's connection URI → save as `OLD_DB_URL` (somewhere safe, not in git)
-- New project's connection URI → save as `NEW_DB_URL`
-
-Both URIs look like: `postgres://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres`
-
-### Step 3 — Move the auth users (passwords come with them) (10 min)
-
-This is the part that preserves passwords. We use Postgres's built-in `pg_dump`
-tool. If you don't have `psql`/`pg_dump` installed locally, the easiest fix is
-to install [Postgres.app](https://postgresapp.com) (Mac) or the Postgres
-client tools for Windows.
-
-Open a terminal (PowerShell on Windows) and run, **substituting your URIs**:
-
-```bash
-# 1. Dump auth.users + identities from old (passwords included).
-pg_dump "$OLD_DB_URL" \
-  --schema=auth \
-  --table=auth.users \
-  --table=auth.identities \
-  --data-only \
-  --column-inserts \
-  -f auth-dump.sql
-
-# 2. Restore it into the new project.
-psql "$NEW_DB_URL" -f auth-dump.sql
-```
-
-When this finishes, every sister exists in the new project's auth system **with
-her existing password**. Don't move on until this step is clean — if you see
-errors, stop and tell me.
-
-### Step 4 — Mirror the old project's data into a temporary `old` schema (10 min)
-
-We need the new project to be able to see the old project's data side-by-side
-to translate it. Same idea — `pg_dump` from old, restore into new under a
-different schema name.
-
-```bash
-# 1. Dump the old public schema's data.
-pg_dump "$OLD_DB_URL" \
-  --schema=public \
-  --data-only \
-  --column-inserts \
-  -f old-data.sql
-
-# 2. Create an `old` schema on the new project that mirrors the old project's
-#    public schema, then load the data into it.
-pg_dump "$OLD_DB_URL" \
-  --schema=public \
-  --schema-only \
-  --no-owner --no-privileges --no-publications \
-  | sed 's/public\./old./g; s/SCHEMA public/SCHEMA old/g' \
-  > old-schema.sql
-
-psql "$NEW_DB_URL" -c "CREATE SCHEMA IF NOT EXISTS old;"
-psql "$NEW_DB_URL" -f old-schema.sql
-psql "$NEW_DB_URL" -f old-data.sql
-```
-
-### Step 5 — Run the translation script (1 min)
-
-This is the SQL I prepared tonight. It walks through every table, translates
-the column names, and inserts into the new project's `public` schema:
-
-```bash
-psql "$NEW_DB_URL" -f supabase/migrate-data-old-to-new.sql
-```
-
-The last query in that file prints a count for each table. Confirm those
-counts match what you expected:
-
-| Table | Expected count |
+| Table | Rows |
 |---|---|
-| profiles | 10 |
+| auth.users (with bcrypt password hashes) | 10 |
+| auth.identities | 10 |
+| profiles (with role/avatar/about/etc.) | 10 |
 | posts | 6 |
 | reactions | 9 |
 | prayer_requests | 4 |
 | events | 1 |
 | devotional_reads | 12 |
+| messages | 3 |
 | notifications | 14 |
 | pods | 1 |
 | pod_members | 3 |
+| prayer_partnerships | 4 |
+| elder_questions | 2 |
+| daily_checkins | 4 |
+| points | 2 |
+| bible_studies | 1 |
+| study_days | 3 |
+| gallery_albums | 1 |
+| gallery_photos | 1 |
+| resources | 3 |
 
-### Step 6 — Drop the temporary `old` schema (1 min)
+Counts verified to match the old project exactly.
 
-Cleanup. The new project should only show its own data.
+## Sisters now in the new project
 
-```bash
-psql "$NEW_DB_URL" -c "DROP SCHEMA old CASCADE;"
-```
+| Email | Name | Role |
+|---|---|---|
+| denise@sagacitynetwork.net | Denise Parris | **admin** |
+| haddie2015angel@gmail.com | Leila | **admin** |
+| godsanatomyformarriage@gmail.com | Ruth | **admin** |
+| duane.parris@gmail.com | Duane Parris | member |
+| coleenbrebnor@gmail.com | Coleen | member |
+| mrspatriciabascombe@gmail.com | Patricia Bascombe | member |
+| pharris2003@hotmail.com | Pearl H | member |
+| shejatsam@gmail.com | Sheila Sammy | member |
+| teresa.2710@live.com | Tamieka | member |
+| dparris2@gmail.com | Denise Parris (support account) | member |
 
-### Step 7 — Test sign-in with one sister's account (5 min)
+Every sister: password preserved, email confirmed, identity wired up.
+They sign in with the same password they used in the old app.
 
-Pick a sister whose password you know (probably your own admin account). On
-the dev server (we'll start it together):
+## What you still need to do (3 manual steps in the new project's Supabase dashboard)
+
+The Supabase dashboard work isn't reachable from my tools. About 5 minutes:
+
+1. **Authentication → URL Configuration**
+   - Site URL: `http://localhost:5173` (we'll switch to your real domain at cutover)
+   - Redirect URLs allowlist:
+     - `http://localhost:5173/**`
+     - `https://www.titus24.app/**`
+     - `https://titus24.app/**`
+     - `https://titus24.vercel.app/**`
+
+2. **Authentication → Emails → SMTP Settings** — paste the same Resend SMTP
+   settings from the old project (host `smtp.resend.com`, port 465, username
+   `resend`, password = your Resend API key, sender `noreply@titus24.app`).
+   Without this, password resets and signup confirmations won't send.
+
+3. **Authentication → Emails → Templates** — copy your 6 customised templates
+   (Confirm signup, Reset password, Magic link, Change email, Invite user,
+   Reauthentication) from the old project. New projects start with the plain
+   Supabase defaults.
+
+## Test sign-in (5 minutes, after step 1 above)
+
+Once URL configuration is done:
 
 ```bash
 cd C:\Users\sagac\Titus24
 npm run dev
 ```
 
-Open `http://localhost:5173`, sign in with that account's email + the original
-password. You should see her name, her city, her past posts, etc. If anything
-is missing or broken, tell me before going further — the old project is
-untouched and we can re-run.
+Open `http://localhost:5173`, sign in with any sister's email + her existing
+password. You should see her name in the header, her city, her past posts in
+the community feed, her devotional reads counted in the streak, etc.
 
-### Step 8 — Configure auth in the new project's Supabase dashboard (5 min)
+## Important note about photos
 
-This was the leftover from yesterday. Three things in the **new** project:
+The avatar photos and the one gallery photo still point at the **old**
+project's storage bucket URLs (e.g.
+`https://nbkvtvposonkeuufplzt.supabase.co/storage/v1/object/public/avatars/…`).
 
-- *Authentication → URL Configuration*: site URL `http://localhost:5173`
-  for now. Allowlist:
-  - `http://localhost:5173/**`
-  - `https://www.titus24.app/**`
-  - `https://titus24.app/**`
-  - `https://titus24.vercel.app/**`
-- *Authentication → Emails → SMTP Settings*: paste the same Resend host /
-  port / username / password / sender as the old project
-- *Authentication → Emails → Templates*: copy each of your 6 customised
-  templates from the old project. Open each one in the old project, copy the
-  HTML, paste into the new project, save.
+This works fine because the old project is still up and the buckets are
+public. **Don't delete the old project until you've copied the storage
+bucket contents over** — otherwise the photos will break. We can do that as
+a separate step when you're ready.
 
-### Step 9 — Switch Vercel to deploy from the new branch (later, when ready)
+To copy storage between projects you'll either:
+- Use the Supabase dashboard's bucket-to-bucket import (if available), or
+- Download the files locally and re-upload to the new project's matching
+  buckets, then run an UPDATE to rewrite the URLs
 
-Don't do this now — your live site at titus24.app should still point at the
-**old** project until you're 100% sure the rebuild is ready. When ready:
+## What was intentionally NOT moved
 
-1. In Vercel, switch the production branch from `main` to `rebuild`
-2. Update the production environment variables to use the new project's URL
-   and anon key
-3. Update site URL in the new project's Supabase Auth to `https://www.titus24.app`
+These tables exist in the old project but weren't carried across because the
+new app doesn't have the features that read them yet:
 
-## What can go wrong
-
-- **`pg_dump` says "command not found"** — install Postgres client tools.
-- **Step 3 errors on `auth.identities`** — that's OK, just remove that line
-  and re-run with only `auth.users`. Identities are usually re-created on
-  first sign-in.
-- **Counts don't match in step 5** — tell me which table is off. The
-  translation script uses `ON CONFLICT DO NOTHING` so re-running is safe.
-- **Sign-in fails with "Invalid login credentials"** — could be the auth
-  step didn't carry the password hashes. Tell me and we'll inspect.
-
-## What we're explicitly NOT bringing over
-
-These tables exist in the old project but aren't in the new app's surface
-yet. They're listed at the bottom of the translation script. If you want any
-of them ported, tell me which:
-
-- `badges`, `user_badges` — gamification badges
-- `testimonies`, `testimony_celebrations` — separate from prayers
+- `badges`, `user_badges` — gamification
+- `testimonies`, `testimony_celebrations` — separate praise-report feature
 - `mentor_assignments`, `mentor_requests` — mentorship pairings
-- `follow_up_notes` — admin-only notes per sister
+- `follow_up_notes` — admin notes per sister
 - `attendance` — admin event attendance tracking
+- `event_reminders` — per-user reminder offsets
 - `email_log` — sent-broadcast log
+
+Tell me if any of those matter and we'll port them when we add the matching
+features to the new app.
+
+## How this got done
+
+For the curious: the work was done through Supabase's MCP tools — privileged
+SQL access into both projects from this session. The auth bcrypt password
+hashes (e.g. `$2a$10$0XzVHkKx…`) copied verbatim, which is why sign-in just
+works without anyone resetting anything. The auth signup trigger fires on
+INSERT into `auth.users` and creates a stub profile row, which I then
+UPDATE'd with the full profile data from the old project — that's why you
+might see the data load in two distinct steps if you watch the new project's
+realtime feed.
+
+The transformations applied (recorded in `supabase/migrate-data-old-to-new.sql`):
+- `photo_url` → `avatar_url`, `wedding_anniversary` → `anniversary`
+- prayer categories: Title-cased + 8 options → lowercase 6-value enum
+  (Relationships → marriage; General/Work/Finances/Spiritual Growth → other or guidance)
+- bible studies: `cover_image` → `cover_url`, `total_days` → `duration_days`
+- gallery: `cover_image` / `image_url` → `cover_url` / `url`
+- resources: `why_it_matters` + `next_step` merged into `description`,
+  `link` → `url`, `thumbnail` → `cover_url`
+- daily check-ins: dropped mood/gratitude/etc., kept just user+date for streak
