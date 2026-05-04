@@ -16,3 +16,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>
 );
+
+// Register the service worker so Android/desktop browsers consider the
+// site installable as a PWA. The SW file is in /public.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('[sw] registration failed:', err);
+    });
+  });
+}

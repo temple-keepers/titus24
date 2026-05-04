@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthProvider';
 import { AuthGate } from './routes/AuthGate';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { InstallPrompt } from './components/InstallPrompt';
 import { AppShell } from './layout/AppShell';
 
 import SignIn from './screens/auth/SignIn';
@@ -56,6 +57,7 @@ export default function App() {
       <ErrorBoundary>
         <ToastProvider>
           <AuthProvider>
+            <InstallPrompt />
             <AuthGate>
               <Routes>
                 {/* Auth routes */}
