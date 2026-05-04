@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
-import { Users, MessageCircle, HandHeart, Calendar, BookOpen, Library, Layers, CalendarHeart, FileText } from 'lucide-react';
+import { Users, MessageCircle, HandHeart, Calendar, BookOpen, Library, Layers, CalendarHeart, FileText, ClipboardList, Mail } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { isAdmin } from '../../lib/roles';
 import { cn } from '../../lib/cn';
@@ -7,15 +7,18 @@ import { cn } from '../../lib/cn';
 const ADMIN_NAV = [
   { to: '/admin', end: true, label: 'Overview', Icon: Layers },
   { to: '/admin/members', label: 'Members', Icon: Users },
+  { to: '/admin/follow-up', label: 'Follow-up notes', Icon: FileText },
   { to: '/admin/posts', label: 'Posts', Icon: MessageCircle },
   { to: '/admin/prayers', label: 'Prayers', Icon: HandHeart },
   { to: '/admin/events', label: 'Events', Icon: Calendar },
+  { to: '/admin/attendance', label: 'Attendance', Icon: ClipboardList },
   { to: '/admin/devotionals', label: 'Devotionals', Icon: BookOpen },
   { to: '/admin/studies', label: 'Bible studies', Icon: BookOpen },
   { to: '/admin/resources', label: 'Resources', Icon: Library },
   { to: '/admin/pods', label: 'Groups', Icon: Users },
   { to: '/admin/mentors', label: 'Mentor pairings', Icon: HandHeart },
   { to: '/admin/elder-qa', label: 'Elder Q&A', Icon: HandHeart },
+  { to: '/admin/email', label: 'Email broadcast', Icon: Mail },
   { to: '/admin/celebrations', label: 'Celebrations', Icon: CalendarHeart },
   { to: '/admin/guide', label: 'Guide', Icon: FileText },
 ];

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Award, Flame, CheckCircle2 } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { Textarea } from '../../components/Input';
+import { Modal } from '../../components/Modal';
 import { Avatar } from '../../components/Avatar';
 import { LoadingPage } from '../../components/LoadingPage';
 import { useAuth } from '../../auth/AuthProvider';
@@ -9,7 +11,19 @@ import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { todayLocalISO } from '../../lib/dates';
+import { cn } from '../../lib/cn';
 import type { Profile } from '../../lib/database.types';
+
+const MOODS: Array<{ value: string; emoji: string; label: string }> = [
+  { value: 'joyful',     emoji: '😊', label: 'Joyful' },
+  { value: 'peaceful',   emoji: '🕊️', label: 'Peaceful' },
+  { value: 'grateful',   emoji: '🙏', label: 'Grateful' },
+  { value: 'hopeful',    emoji: '🌸', label: 'Hopeful' },
+  { value: 'excited',    emoji: '✨', label: 'Excited' },
+  { value: 'anxious',    emoji: '😰', label: 'Anxious' },
+  { value: 'struggling', emoji: '💔', label: 'Struggling' },
+  { value: 'lonely',     emoji: '🥀', label: 'Lonely' },
+];
 
 interface Row {
   user: Profile;
@@ -23,6 +37,7 @@ export default function Leaderboard() {
   const [streak, setStreak] = useState(0);
   const [checkedIn, setCheckedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [checkInOpen, setCheckInOpen] = useState(false);
 
   async function refresh() {
     const today = todayLocalISO();
@@ -72,14 +87,28 @@ export default function Leaderboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  async function checkIn() {
+  async function submitCheckIn(payload: {
+    mood: string;
+    gratitude: string;
+    prayer_need: string;
+    read_scripture: boolean;
+  }) {
     if (!user) return;
     const today = todayLocalISO();
-    const { error } = await supabase
-      .from('daily_checkins')
-      .upsert({ user_id: user.id, date: today }, { onConflict: 'user_id,date', ignoreDuplicates: true });
+    const { error } = await supabase.from('daily_checkins').upsert(
+      {
+        user_id: user.id,
+        date: today,
+        mood: payload.mood || null,
+        gratitude: payload.gratitude.trim() || null,
+        prayer_need: payload.prayer_need.trim() || null,
+        read_scripture: payload.read_scripture,
+      },
+      { onConflict: 'user_id,date' }
+    );
     if (failIfError(error, 'check in', addToast)) return;
     addToast({ kind: 'success', title: "You're here, sister", body: '+2 points' });
+    setCheckInOpen(false);
     refresh();
   }
 
@@ -102,10 +131,14 @@ export default function Leaderboard() {
               <CheckCircle2 size={16} /> Checked in
             </span>
           ) : (
-            <Button onClick={checkIn}>Check in today</Button>
+            <Button onClick={() => setCheckInOpen(true)}>Check in today</Button>
           )}
         </div>
       </Card>
+
+      <Modal open={checkInOpen} onClose={() => setCheckInOpen(false)} title="Today's check-in">
+        <CheckInForm onSubmit={submitCheckIn} />
+      </Modal>
 
       <SectionTitle>Top sisters</SectionTitle>
       {rows.length === 0 ? (
@@ -126,5 +159,75 @@ export default function Leaderboard() {
         ))
       )}
     </div>
+  );
+}
+
+function CheckInForm({
+  onSubmit,
+}: {
+  onSubmit: (payload: { mood: string; gratitude: string; prayer_need: string; read_scripture: boolean }) => Promise<void>;
+}) {
+  const [mood, setMood] = useState('');
+  const [gratitude, setGratitude] = useState('');
+  const [prayerNeed, setPrayerNeed] = useState('');
+  const [readScripture, setReadScripture] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    await onSubmit({ mood, gratitude, prayer_need: prayerNeed, read_scripture: readScripture });
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div>
+        <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-app-muted">
+          How are you today, sister?
+        </span>
+        <div className="grid grid-cols-4 gap-2">
+          {MOODS.map((m) => (
+            <button
+              type="button"
+              key={m.value}
+              onClick={() => setMood(m.value)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-2xl border px-2 py-2 text-xs',
+                mood === m.value
+                  ? 'border-brand-400 bg-brand-50 text-brand-700'
+                  : 'border-app text-app-muted hover:bg-surface-raised'
+              )}
+            >
+              <span className="text-xl">{m.emoji}</span>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <Textarea
+        label="What are you grateful for? (optional)"
+        rows={2}
+        value={gratitude}
+        onChange={(e) => setGratitude(e.target.value)}
+      />
+      <Textarea
+        label="What can your sisters pray about? (optional)"
+        rows={2}
+        value={prayerNeed}
+        onChange={(e) => setPrayerNeed(e.target.value)}
+      />
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={readScripture}
+          onChange={(e) => setReadScripture(e.target.checked)}
+        />
+        I read scripture today
+      </label>
+      <Button type="submit" loading={busy} fullWidth>
+        Save check-in
+      </Button>
+    </form>
   );
 }

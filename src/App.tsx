@@ -38,6 +38,9 @@ import AdminEvents from './screens/admin/AdminEvents';
 import AdminDevotionals from './screens/admin/AdminDevotionals';
 import AdminCelebrations from './screens/admin/AdminCelebrations';
 import AdminMentors from './screens/admin/AdminMentors';
+import AdminFollowUp from './screens/admin/AdminFollowUp';
+import AdminAttendance from './screens/admin/AdminAttendance';
+import AdminEmail from './screens/admin/AdminEmail';
 import {
   AdminPrayers,
   AdminResources,
@@ -90,10 +93,13 @@ export default function App() {
                   <Route path="admin" element={<AdminLayout />}>
                     <Route index element={<AdminOverview />} />
                     <Route path="members" element={<AdminMembers />} />
+                    <Route path="follow-up" element={<AdminFollowUp />} />
                     <Route path="posts" element={<AdminPosts />} />
                     <Route path="prayers" element={<AdminPrayers />} />
                     <Route path="events" element={<AdminEvents />} />
+                    <Route path="attendance" element={<AdminAttendance />} />
                     <Route path="devotionals" element={<AdminDevotionals />} />
+                    <Route path="email" element={<AdminEmail />} />
                     <Route path="studies" element={<AdminStudies />} />
                     <Route path="resources" element={<AdminResources />} />
                     <Route path="pods" element={<AdminPods />} />
