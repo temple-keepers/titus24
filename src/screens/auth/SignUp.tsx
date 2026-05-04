@@ -10,6 +10,8 @@ export default function SignUp() {
   const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agree, setAgree] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -19,6 +21,14 @@ export default function SignUp() {
     setError(null);
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (!agree) {
+      setError('Please confirm you are 18+ and accept the terms to continue.');
       return;
     }
     setBusy(true);
@@ -97,6 +107,30 @@ export default function SignUp() {
           onChange={(e) => setPassword(e.target.value)}
           hint="At least 8 characters."
         />
+        <Input
+          label="Confirm password"
+          name="confirm_password"
+          type="password"
+          autoComplete="new-password"
+          required
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+        <label className="flex items-start gap-2 text-xs leading-5 text-app-muted">
+          <input
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            I'm 18 or older and I accept the{' '}
+            <Link to="/guide" className="font-semibold text-brand-600 hover:text-brand-700">
+              community guidelines
+            </Link>
+            .
+          </span>
+        </label>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" loading={busy} fullWidth>
           Create my account

@@ -7,10 +7,13 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISS_KEY = 'titus_install_dismissed_at';
+const SESSION_KEY = 'titus_install_dismissed_session';
 const DISMISS_DAYS = 14;
 
 function recentlyDismissed(): boolean {
   if (typeof window === 'undefined') return false;
+  // Same-session dismissal sticks immediately, regardless of localStorage.
+  if (window.sessionStorage.getItem(SESSION_KEY) === '1') return true;
   const v = window.localStorage.getItem(DISMISS_KEY);
   if (!v) return false;
   const ms = Number(v);
@@ -20,6 +23,7 @@ function recentlyDismissed(): boolean {
 
 function markDismissed() {
   window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  window.sessionStorage.setItem(SESSION_KEY, '1');
 }
 
 function isStandalone(): boolean {
@@ -53,14 +57,20 @@ export function InstallPrompt() {
     window.addEventListener('beforeinstallprompt', handler);
 
     // iOS path — no event fires, so we detect and show a hint after a delay.
+    let iosTimer: number | undefined;
     if (isIOS()) {
-      window.setTimeout(() => {
+      iosTimer = window.setTimeout(() => {
+        // Re-check at fire time — dismissal may have happened during the wait.
+        if (recentlyDismissed() || isStandalone()) return;
         setIosHint(true);
         setShow(true);
       }, 6000);
     }
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      if (iosTimer !== undefined) window.clearTimeout(iosTimer);
+    };
   }, []);
 
   async function install() {

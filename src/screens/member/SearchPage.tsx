@@ -45,7 +45,7 @@ export default function SearchPage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="font-display text-3xl">Search</h1>
       <form onSubmit={onSearch} className="flex gap-2">
-        <Input name="q" placeholder="Search posts, prayers, sisters, events…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input name="q" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
         <Button type="submit" loading={busy}>Search</Button>
       </form>
 

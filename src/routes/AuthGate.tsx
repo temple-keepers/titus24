@@ -28,6 +28,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (loading) return <LoadingPage />;
 
+  // If we have a session but the profile fetch hasn't landed yet, hold the
+  // loading screen — otherwise route guards like AdminLayout see role=undefined
+  // on hard refresh and bounce admins back to home (F-021).
+  if (session && !profile) return <LoadingPage />;
+
   if (!session) {
     const onPublicRoute =
       location.pathname.startsWith('/sign-in') ||

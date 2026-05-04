@@ -66,8 +66,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     clearRecoveryMode();
-    await supabase.auth.signOut();
+    // Clear local state synchronously first so the UI can't briefly re-render
+    // as the previous user before supabase-js has finished tearing down.
+    profileFor.current = null;
     setProfile(null);
+    setSession(null);
+    await supabase.auth.signOut({ scope: 'global' });
+    // Defensive: belt-and-braces purge of any lingering sb-* tokens. If a
+    // refresh token is left behind the next page load can silently revive
+    // the session (F-028).
+    if (typeof window !== 'undefined') {
+      try {
+        for (const key of Object.keys(window.localStorage)) {
+          if (key.startsWith('sb-') || key.startsWith('supabase.auth.')) {
+            window.localStorage.removeItem(key);
+          }
+        }
+      } catch {
+        /* localStorage may be blocked in private mode — ignore */
+      }
+    }
   }, [clearRecoveryMode]);
 
   useEffect(() => {

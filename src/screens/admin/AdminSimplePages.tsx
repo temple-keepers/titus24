@@ -90,32 +90,34 @@ function makeListPage(opts: {
 
     return (
       <div className="space-y-4">
-        <Card>
-          <SectionTitle>New {opts.title.toLowerCase()}</SectionTitle>
-          <form onSubmit={create} className="space-y-3">
-            {opts.fields.map((f) =>
-              f.type === 'textarea' ? (
-                <Textarea
-                  key={f.key}
-                  label={f.label}
-                  required={f.required}
-                  value={form[f.key] ?? ''}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
-              ) : (
-                <Input
-                  key={f.key}
-                  label={f.label}
-                  type={f.type ?? 'text'}
-                  required={f.required}
-                  value={form[f.key] ?? ''}
-                  onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                />
-              )
-            )}
-            <Button type="submit" loading={busy}>Save</Button>
-          </form>
-        </Card>
+        {opts.fields.length > 0 && (
+          <Card>
+            <SectionTitle>New {opts.title.toLowerCase()}</SectionTitle>
+            <form onSubmit={create} className="space-y-3">
+              {opts.fields.map((f) =>
+                f.type === 'textarea' ? (
+                  <Textarea
+                    key={f.key}
+                    label={f.label}
+                    required={f.required}
+                    value={form[f.key] ?? ''}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                ) : (
+                  <Input
+                    key={f.key}
+                    label={f.label}
+                    type={f.type ?? 'text'}
+                    required={f.required}
+                    value={form[f.key] ?? ''}
+                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  />
+                )
+              )}
+              <Button type="submit" loading={busy}>Save</Button>
+            </form>
+          </Card>
+        )}
         <SectionTitle>{opts.title}</SectionTitle>
         {rows.length === 0 ? (
           <EmptyState title={`No ${opts.title.toLowerCase()}`} />

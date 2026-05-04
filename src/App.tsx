@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import { AuthGate } from './routes/AuthGate';
 import { ToastProvider } from './components/ToastProvider';
@@ -11,6 +11,7 @@ import SignUp from './screens/auth/SignUp';
 import ForgotPassword from './screens/auth/ForgotPassword';
 import SetNewPassword from './screens/auth/SetNewPassword';
 import Welcome from './screens/welcome/Welcome';
+import NotFound from './screens/NotFound';
 
 import Home from './screens/member/Home';
 import Devotional from './screens/member/Devotional';
@@ -118,7 +119,7 @@ export default function App() {
                     <Route path="guide" element={<AdminGuide />} />
                   </Route>
 
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<NotFound />} />
                 </Route>
               </Routes>
             </AuthGate>

@@ -77,9 +77,14 @@ export default function Devotional() {
       </Card>
       <div className="pt-2">
         {readToday ? (
-          <Button variant="sage" disabled fullWidth>
-            ✓ Read today
-          </Button>
+          <>
+            <Button variant="sage" disabled fullWidth>
+              ✓ Read today
+            </Button>
+            <p className="mt-2 text-center text-xs text-app-muted">
+              You've already marked today's devotional as read. See you tomorrow, sister.
+            </p>
+          </>
         ) : (
           <Button onClick={markRead} loading={busy} fullWidth>
             I've read today's devotional

@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin } from 'lucide-react';
-import { Card, ScripturePill, SectionTitle } from '../../components/Card';
+import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin, Camera } from 'lucide-react';
+import { Card, EmptyState, ScripturePill, SectionTitle } from '../../components/Card';
 import { Input, Textarea } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Avatar } from '../../components/Avatar';
@@ -47,7 +47,24 @@ export default function Profile() {
     });
   }, [id, isOwn, profile]);
 
-  if (loading || !target) return <LoadingPage />;
+  if (loading) return <LoadingPage />;
+
+  if (!target) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <EmptyState
+          title="We couldn't find that sister"
+          body="The profile may have been removed, or the link may be wrong."
+          icon={<Heart size={28} />}
+          action={
+            <Link to="/directory" className="text-sm font-semibold text-brand-600">
+              ← Back to Directory
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
 
   if (isOwn) {
     return (
@@ -192,7 +209,13 @@ function OwnProfileEditor({
         {/* Basics */}
         <Card>
           <SectionTitle>Basics</SectionTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <AvatarUpload
+            userId={profile.id}
+            current={avatar}
+            displayName={display || first}
+            onUploaded={(url) => setAvatar(url)}
+          />
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input label="First name" value={first} onChange={(e) => setFirst(e.target.value)} />
             <Input label="Last name" value={last} onChange={(e) => setLast(e.target.value)} />
             <Input
@@ -200,12 +223,6 @@ function OwnProfileEditor({
               value={display}
               onChange={(e) => setDisplay(e.target.value)}
               hint="What sisters see in posts and messages."
-            />
-            <Input
-              label="Avatar URL"
-              value={avatar}
-              onChange={(e) => setAvatar(e.target.value)}
-              hint="Paste a link to your photo for now."
             />
           </div>
         </Card>
@@ -361,6 +378,94 @@ function OwnProfileEditor({
           </Button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ─── Avatar upload ───────────────────────────────────────────────────
+
+function AvatarUpload({
+  userId,
+  current,
+  displayName,
+  onUploaded,
+}: {
+  userId: string;
+  current: string;
+  displayName: string;
+  onUploaded: (url: string) => void;
+}) {
+  const { addToast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      addToast({ kind: 'error', title: 'That photo is too big', body: 'Please use one under 5 MB.' });
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      addToast({ kind: 'error', title: 'Not a photo', body: 'Please pick an image file.' });
+      return;
+    }
+
+    setBusy(true);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const path = `${userId}/${Date.now()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+
+    if (upErr) {
+      setBusy(false);
+      addToast({ kind: 'error', title: 'Upload failed', body: upErr.message });
+      return;
+    }
+
+    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+    // Cache-bust by appending a timestamp so the new image appears immediately.
+    const bustUrl = `${pub.publicUrl}?t=${Date.now()}`;
+
+    const { error: updErr } = await supabase
+      .from('profiles')
+      .update({ avatar_url: bustUrl })
+      .eq('id', userId);
+
+    setBusy(false);
+
+    if (updErr) {
+      addToast({ kind: 'error', title: 'Could not save avatar', body: updErr.message });
+      return;
+    }
+    onUploaded(bustUrl);
+    addToast({ kind: 'success', title: 'Photo updated' });
+  }
+
+  return (
+    <div className="flex items-center gap-4">
+      <Avatar size={72} url={current || null} name={displayName} />
+      <div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFile}
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          leadingIcon={<Camera size={16} />}
+          loading={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {current ? 'Change photo' : 'Upload photo'}
+        </Button>
+        <p className="mt-1 text-xs text-app-muted">JPG or PNG, up to 5 MB.</p>
+      </div>
     </div>
   );
 }

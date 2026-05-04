@@ -144,6 +144,23 @@ export function ConversationView() {
 
   if (loading) return <LoadingPage />;
 
+  if (!partner) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <EmptyState
+          title="This sister isn't here"
+          body="The conversation link may be broken or the account may have been removed."
+          icon={<MessageCircle size={28} />}
+          action={
+            <Link to="/messages" className="text-sm font-semibold text-brand-600">
+              ← Back to Messages
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex h-[calc(100vh-9rem)] max-w-2xl flex-col">
       <header className="flex items-center gap-3 border-b border-app pb-3 mb-3">

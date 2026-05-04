@@ -53,7 +53,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <Card>
       <p className="text-xs uppercase tracking-wide text-app-muted">{label}</p>
-      <p className="font-display text-3xl text-brand-600">{value}</p>
+      <p className="font-sans text-3xl font-semibold text-brand-600 tabular-nums">{value}</p>
     </Card>
   );
 }

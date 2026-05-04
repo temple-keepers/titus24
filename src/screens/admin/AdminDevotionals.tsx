@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { startTransition, useEffect, useState, type FormEvent } from 'react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
@@ -26,9 +26,18 @@ export default function AdminDevotionals() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const { data } = await supabase.from('daily_devotionals').select('*').order('date', { ascending: false }).limit(60);
-    setItems((data as DailyDevotional[] | null) ?? []);
-    setLoading(false);
+    // Only fetch summary columns for the list — full content (reflection,
+    // prayer, scripture_text) is large and was bloating state for the 30-day
+    // seed. The form upserts by date, so we don't need full rows here.
+    const { data } = await supabase
+      .from('daily_devotionals')
+      .select('id, date, theme, scripture_ref')
+      .order('date', { ascending: false })
+      .limit(30);
+    startTransition(() => {
+      setItems((data as DailyDevotional[] | null) ?? []);
+      setLoading(false);
+    });
   }
 
   useEffect(() => {
@@ -80,18 +89,23 @@ export default function AdminDevotionals() {
       {items.length === 0 ? (
         <EmptyState title="No devotionals yet" />
       ) : (
-        items.map((d) => (
-          <Card key={d.id}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-xs uppercase tracking-wide text-app-muted">{d.date}</div>
-                <h3 className="font-display text-lg">{d.theme}</h3>
-                <p className="text-xs text-app-muted">{d.scripture_ref}</p>
+        <div className="space-y-3">
+          {items.map((d) => (
+            <Card key={d.id}>
+              <div
+                className="flex items-start justify-between gap-3"
+                style={{ contentVisibility: 'auto', containIntrinsicSize: '64px' }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-app-muted">{d.date}</div>
+                  <h3 className="font-display text-lg">{d.theme}</h3>
+                  <p className="text-xs text-app-muted">{d.scripture_ref}</p>
+                </div>
+                <button onClick={() => del(d.id)} className="text-xs text-red-600 font-semibold">Delete</button>
               </div>
-              <button onClick={() => del(d.id)} className="text-xs text-red-600 font-semibold">Delete</button>
-            </div>
-          </Card>
-        ))
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
