@@ -12,6 +12,7 @@ const TILES = [
   { to: '/directory', label: 'Directory', Icon: Users },
   { to: '/leaderboard', label: 'Leaderboard', Icon: Award },
   { to: '/elders', label: 'Ask Elders', Icon: HandHeart },
+  { to: '/mentor', label: 'My Mentor', Icon: HandHeart },
   { to: '/partners', label: 'Prayer Partners', Icon: Heart },
   { to: '/notifications', label: 'Notifications', Icon: Bell },
   { to: '/search', label: 'Search', Icon: Search },

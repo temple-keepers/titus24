@@ -14,6 +14,7 @@ const ADMIN_NAV = [
   { to: '/admin/studies', label: 'Bible studies', Icon: BookOpen },
   { to: '/admin/resources', label: 'Resources', Icon: Library },
   { to: '/admin/pods', label: 'Groups', Icon: Users },
+  { to: '/admin/mentors', label: 'Mentor pairings', Icon: HandHeart },
   { to: '/admin/elder-qa', label: 'Elder Q&A', Icon: HandHeart },
   { to: '/admin/celebrations', label: 'Celebrations', Icon: CalendarHeart },
   { to: '/admin/guide', label: 'Guide', Icon: FileText },

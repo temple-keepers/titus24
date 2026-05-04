@@ -26,6 +26,7 @@ import Profile from './screens/member/Profile';
 import Leaderboard from './screens/member/Leaderboard';
 import AskElders from './screens/member/AskElders';
 import PrayerPartners from './screens/member/PrayerPartners';
+import MyMentor from './screens/member/MyMentor';
 import Guide from './screens/member/Guide';
 import More from './screens/member/More';
 
@@ -36,6 +37,7 @@ import AdminPosts from './screens/admin/AdminPosts';
 import AdminEvents from './screens/admin/AdminEvents';
 import AdminDevotionals from './screens/admin/AdminDevotionals';
 import AdminCelebrations from './screens/admin/AdminCelebrations';
+import AdminMentors from './screens/admin/AdminMentors';
 import {
   AdminPrayers,
   AdminResources,
@@ -79,6 +81,7 @@ export default function App() {
                   <Route path="leaderboard" element={<Leaderboard />} />
                   <Route path="elders" element={<AskElders />} />
                   <Route path="partners" element={<PrayerPartners />} />
+                  <Route path="mentor" element={<MyMentor />} />
                   <Route path="guide" element={<Guide />} />
                   <Route path="settings" element={<Profile />} />
                   <Route path="more" element={<More />} />
@@ -94,6 +97,7 @@ export default function App() {
                     <Route path="studies" element={<AdminStudies />} />
                     <Route path="resources" element={<AdminResources />} />
                     <Route path="pods" element={<AdminPods />} />
+                    <Route path="mentors" element={<AdminMentors />} />
                     <Route path="elder-qa" element={<AdminElderQuestions />} />
                     <Route path="celebrations" element={<AdminCelebrations />} />
                     <Route path="guide" element={<AdminGuide />} />
