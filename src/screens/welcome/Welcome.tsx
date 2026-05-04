@@ -136,7 +136,12 @@ function WhatItIs() {
 }
 
 function FeatureGrid() {
-  const features = [
+  const features: Array<{
+    Icon: typeof Heart;
+    title: string;
+    body: string;
+    tint: 'rose' | 'pink' | 'sage';
+  }> = [
     {
       Icon: BookOpen,
       title: 'A daily devotional, every morning',
