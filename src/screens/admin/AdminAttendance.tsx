@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Calendar, Users, Plus } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Avatar } from '../../components/Avatar';
+import { Button } from '../../components/Button';
 import { LoadingPage } from '../../components/LoadingPage';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
@@ -127,6 +129,23 @@ export default function AdminAttendance() {
 
   return (
     <div className="space-y-3">
+      <Card className="bg-surface-raised">
+        <div className="flex items-center gap-3">
+          <div className="shrink-0 rounded-2xl bg-brand-100 p-2 text-brand-600">
+            <Calendar size={20} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Need to add a new meeting?</p>
+            <p className="text-xs text-app-muted">
+              Attendance only lists events that already exist. Create them in Events, then come back here.
+            </p>
+          </div>
+          <Link to="/admin/events" className="shrink-0">
+            <Button size="sm" leadingIcon={<Plus size={14} />}>Add event</Button>
+          </Link>
+        </div>
+      </Card>
+
       {events.length === 0 ? (
         <EmptyState title="No events yet" body="Create an event first, then come here to mark attendance." icon={<Calendar size={28} />} />
       ) : (
