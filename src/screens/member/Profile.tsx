@@ -163,7 +163,7 @@ function OwnProfileEditor({
   const [city, setCity] = useState(profile.city ?? '');
   const [country, setCountry] = useState(profile.country ?? '');
   const [area, setArea] = useState(profile.area ?? '');
-  const [phone, setPhone] = useState(profile.phone_number ?? '');
+  const [phone, setPhone] = useState('');
   const [about, setAbout] = useState(profile.about ?? '');
   const [verse, setVerse] = useState(profile.favourite_verse ?? '');
   const [prayer, setPrayer] = useState(profile.prayer_focus ?? '');
@@ -174,7 +174,26 @@ function OwnProfileEditor({
   const [anniversary, setAnniversary] = useState(profile.anniversary ?? '');
   const [profession, setProfession] = useState(profile.profession ?? '');
   const [skills, setSkills] = useState<string[]>(profile.skills ?? []);
+  const [readReceipts, setReadReceipts] = useState<boolean>(profile.read_receipts_enabled ?? true);
   const [busy, setBusy] = useState(false);
+
+  // Phone number lives on contact_info (leader-only RLS), so we hydrate
+  // it separately on mount.
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from('contact_info')
+      .select('phone_number')
+      .eq('user_id', profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        setPhone(((data as { phone_number: string | null } | null)?.phone_number) ?? '');
+      });
+    return () => {
+      active = false;
+    };
+  }, [profile.id]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -189,7 +208,6 @@ function OwnProfileEditor({
         city: city.trim() || null,
         country: country.trim() || null,
         area: area.trim() || null,
-        phone_number: phone.trim() || null,
         about: about.trim() || null,
         favourite_verse: verse.trim() || null,
         prayer_focus: prayer.trim() || null,
@@ -200,10 +218,22 @@ function OwnProfileEditor({
         anniversary: anniversary || null,
         profession: profession.trim() || null,
         skills,
+        read_receipts_enabled: readReceipts,
       })
       .eq('id', profile.id);
+
+    // Phone number lives in its own RLS-protected table.
+    const phoneTrim = phone.trim();
+    const { error: phoneErr } = await supabase
+      .from('contact_info')
+      .upsert(
+        { user_id: profile.id, phone_number: phoneTrim || null, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+
     setBusy(false);
     if (failIfError(error, 'save your profile', addToast)) return;
+    if (failIfError(phoneErr, 'save your phone number', addToast)) return;
     addToast({ kind: 'success', title: 'Profile saved' });
     await onSaved();
   }
@@ -396,6 +426,26 @@ function OwnProfileEditor({
           <div className="mt-3">
             <SkillsPicker value={skills} onChange={setSkills} />
           </div>
+        </Card>
+
+        {/* Privacy */}
+        <Card>
+          <SectionTitle>Privacy</SectionTitle>
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={readReceipts}
+              onChange={(e) => setReadReceipts(e.target.checked)}
+              className="mt-0.5 h-4 w-4"
+            />
+            <span>
+              <span className="font-semibold">Send read receipts</span>
+              <span className="block text-xs text-app-muted">
+                When on, sisters can see "read" next to messages you've opened. Switch off and they
+                only see "delivered". Your unread badges still clear for you.
+              </span>
+            </span>
+          </label>
         </Card>
 
         <div className="flex flex-wrap justify-between gap-2">

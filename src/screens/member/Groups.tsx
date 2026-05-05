@@ -187,6 +187,23 @@ function PodDetail({ pod, onBack }: { pod: PodWithStats; onBack: () => void }) {
 
   useEffect(() => {
     refresh();
+    // Live-update group discussion when sisters post check-ins.
+    const channel = supabase
+      .channel(`pod:${pod.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pod_checkins',
+          filter: `pod_id=eq.${pod.id}`,
+        },
+        () => void refresh()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pod.id]);
 

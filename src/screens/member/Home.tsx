@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, BookOpen, ArrowRight } from 'lucide-react';
+import { Calendar, BookOpen, ArrowRight, MessageCircle, Heart } from 'lucide-react';
 import { Card, ScripturePill, SectionTitle, EmptyState } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { LoadingPage } from '../../components/LoadingPage';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
+import { supabase } from '../../lib/supabase';
 import { getTodayDevotional, hasReadToday, listPosts, listUpcomingEvents } from '../../data/queries';
-import type { DailyDevotional, EventRow } from '../../lib/database.types';
+import type { DailyDevotional, EventRow, Profile } from '../../lib/database.types';
 import type { PostWithAuthor } from '../../data/queries';
 import { todayLocalISO, relativeDayLabel, timeAgo } from '../../lib/dates';
 import { Avatar } from '../../components/Avatar';
@@ -18,22 +19,30 @@ export default function Home() {
   const [readToday, setReadToday] = useState(false);
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [founder, setFounder] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const today = todayLocalISO();
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    const [dev, read, ps, evs] = await Promise.all([
+    const [dev, read, ps, evs, founderRes] = await Promise.all([
       getTodayDevotional(today),
       hasReadToday(user.id, today),
       listPosts(8),
       listUpcomingEvents(7),
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_founder', true)
+        .eq('status', 'active')
+        .maybeSingle(),
     ]);
     setDevotional(dev);
     setReadToday(read);
     setPosts(ps);
     setEvents(evs);
+    setFounder((founderRes.data as Profile | null) ?? null);
     setLoading(false);
   }, [user, today]);
 
@@ -77,6 +86,63 @@ export default function Home() {
       ) : (
         <Card>
           <p className="text-sm text-app-muted">No devotional posted for today yet, sister. Check back soon.</p>
+        </Card>
+      )}
+
+      {/* Direct line to the founder. Hide if the viewer IS the founder. */}
+      {founder && founder.id !== user?.id && (
+        <Card
+          className="border-0"
+          as="article"
+        >
+          <div
+            className="-m-5 rounded-3xl p-5 sm:-m-5 sm:p-5"
+            style={{
+              background: 'linear-gradient(135deg, var(--soft-pink), var(--rose))',
+              color: 'white',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Avatar
+                size={56}
+                url={founder.avatar_url}
+                name={founder.display_name ?? founder.first_name}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] opacity-90">
+                  Our Founder
+                </p>
+                <h2 className="font-display text-xl">
+                  {founder.display_name ?? founder.first_name ?? 'Ruth'}
+                </h2>
+                <p className="mt-1 text-xs opacity-95">
+                  Got something on your heart? Send a private message — she reads them all.
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link to={`/messages/${founder.id}`}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  leadingIcon={<MessageCircle size={14} />}
+                  className="bg-white !text-brand-700"
+                >
+                  Send a message
+                </Button>
+              </Link>
+              <Link to="/elders">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leadingIcon={<Heart size={14} />}
+                  className="!text-white hover:bg-white/10"
+                >
+                  Ask the elders
+                </Button>
+              </Link>
+            </div>
+          </div>
         </Card>
       )}
 

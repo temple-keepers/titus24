@@ -30,12 +30,13 @@ export interface Profile {
   banned_reason: string | null;
   birthday: string | null;
   anniversary: string | null;
-  phone_number: string | null;
   marital_status: MaritalStatus | null;
   husband_name: string | null;
   birthday_visible: boolean;
   profession: string | null;
   skills: string[];
+  read_receipts_enabled: boolean;
+  is_founder: boolean;
   created_at: string;
 }
 
@@ -216,6 +217,12 @@ export interface GalleryPhoto {
   caption: string | null;
   uploaded_by: string;
   created_at: string;
+}
+
+export interface ContactInfo {
+  user_id: string;
+  phone_number: string | null;
+  updated_at: string;
 }
 
 export interface Resource {

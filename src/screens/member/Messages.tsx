@@ -109,7 +109,7 @@ export function MessagesIndex() {
 
 export function ConversationView() {
   const { partnerId } = useParams<{ partnerId: string }>();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { addToast } = useToast();
   const nav = useNavigate();
   const [partner, setPartner] = useState<Profile | null>(null);
@@ -118,6 +118,11 @@ export function ConversationView() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // If the viewer has read receipts disabled, we still want to clear her own
+  // unread badge so she doesn't see "(2)" on a conversation she's read. So
+  // mark a private 'seen_at' locally rather than the public read_at column.
+  const sendsReadReceipts = profile?.read_receipts_enabled ?? true;
 
   useEffect(() => {
     if (!user || !partnerId) return;
@@ -128,13 +133,16 @@ export function ConversationView() {
       setPartner(p);
       setMessages(ms);
       setLoading(false);
-      // Mark unread received as read.
-      void supabase
-        .from('messages')
-        .update({ read_at: new Date().toISOString() })
-        .eq('receiver_id', user.id)
-        .eq('sender_id', partnerId)
-        .is('read_at', null);
+      // Only update the public read_at column if the viewer has receipts on.
+      // Otherwise the sender will see "delivered" instead of "read".
+      if (sendsReadReceipts) {
+        void supabase
+          .from('messages')
+          .update({ read_at: new Date().toISOString() })
+          .eq('receiver_id', user.id)
+          .eq('sender_id', partnerId)
+          .is('read_at', null);
+      }
     });
 
     const ch = supabase
@@ -148,7 +156,7 @@ export function ConversationView() {
             (m.sender_id === partnerId && m.receiver_id === user.id);
           if (involves) {
             setMessages((prev) => [...prev, m]);
-            if (m.receiver_id === user.id) {
+            if (m.receiver_id === user.id && sendsReadReceipts) {
               void supabase.from('messages').update({ read_at: new Date().toISOString() }).eq('id', m.id);
             }
           }
@@ -160,7 +168,7 @@ export function ConversationView() {
       active = false;
       void supabase.removeChannel(ch);
     };
-  }, [user, partnerId]);
+  }, [user, partnerId, sendsReadReceipts]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
