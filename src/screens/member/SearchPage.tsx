@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Search as SearchIcon, Library, BookOpen } from 'lucide-react';
+import { Search as SearchIcon, Library, BookOpen, BookOpenCheck } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -9,8 +9,19 @@ import { supabase } from '../../lib/supabase';
 import type { Post, PrayerRequest, Profile, EventRow, Resource, DailyDevotional } from '../../lib/database.types';
 import { timeAgo } from '../../lib/dates';
 import { cn } from '../../lib/cn';
+import { parseScriptureRef, scriptureSearchVariants } from '../../lib/scripture';
 
-type Filter = 'all' | 'sisters' | 'posts' | 'prayers' | 'events' | 'resources' | 'devotionals';
+interface StudyDayHit {
+  id: string;
+  study_id: string;
+  day_number: number;
+  scripture_ref: string;
+  scripture_text: string;
+  reflection: string;
+  study?: { title: string } | null;
+}
+
+type Filter = 'all' | 'sisters' | 'posts' | 'prayers' | 'events' | 'resources' | 'devotionals' | 'studies';
 
 interface Results {
   posts: Post[];
@@ -19,9 +30,10 @@ interface Results {
   events: EventRow[];
   resources: Resource[];
   devotionals: DailyDevotional[];
+  studyDays: StudyDayHit[];
 }
 
-const EMPTY: Results = { posts: [], prayers: [], profiles: [], events: [], resources: [], devotionals: [] };
+const EMPTY: Results = { posts: [], prayers: [], profiles: [], events: [], resources: [], devotionals: [], studyDays: [] };
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -33,8 +45,18 @@ export default function SearchPage() {
   async function runSearch(query: string) {
     if (!query.trim()) return;
     setBusy(true);
-    const term = `%${query.trim()}%`;
-    const [posts, prayers, profiles, events, resources, devotionals] = await Promise.all([
+    const trimmed = query.trim();
+    const term = `%${trimmed}%`;
+
+    // If the query parses as a scripture reference (e.g. "Prov 3:5"),
+    // also search for the canonical form ("Proverbs 3:5") so devotionals
+    // stored with the long name still match. Build a Postgres OR clause
+    // covering every variant.
+    const variants = scriptureSearchVariants(trimmed);
+    const refOr = variants.map((v) => `scripture_ref.ilike.%${v}%`).join(',');
+    const textOr = variants.map((v) => `scripture_text.ilike.%${v}%`).join(',');
+
+    const [posts, prayers, profiles, events, resources, devotionals, studyDays] = await Promise.all([
       supabase.from('posts').select('*').ilike('content', term).limit(20),
       supabase.from('prayer_requests').select('*').ilike('content', term).eq('is_anonymous', false).limit(20),
       supabase
@@ -54,8 +76,13 @@ export default function SearchPage() {
       supabase
         .from('daily_devotionals')
         .select('id, date, theme, scripture_ref, scripture_text, reflection, affirmation, prayer, created_by, created_at')
-        .or(`theme.ilike.${term},scripture_ref.ilike.${term},scripture_text.ilike.${term},reflection.ilike.${term}`)
+        .or(`theme.ilike.${term},${refOr},${textOr},reflection.ilike.${term}`)
         .order('date', { ascending: false })
+        .limit(20),
+      supabase
+        .from('study_days')
+        .select('id, study_id, day_number, scripture_ref, scripture_text, reflection, study:bible_studies!study_days_study_id_fkey(title)')
+        .or(`${refOr},${textOr},reflection.ilike.${term}`)
         .limit(20),
     ]);
     setResults({
@@ -65,6 +92,7 @@ export default function SearchPage() {
       events: (events.data as EventRow[] | null) ?? [],
       resources: (resources.data as Resource[] | null) ?? [],
       devotionals: (devotionals.data as DailyDevotional[] | null) ?? [],
+      studyDays: ((studyDays.data as unknown) as StudyDayHit[] | null) ?? [],
     });
     setBusy(false);
   }
@@ -88,7 +116,8 @@ export default function SearchPage() {
 
   const r = results ?? EMPTY;
   const total =
-    r.profiles.length + r.posts.length + r.prayers.length + r.events.length + r.resources.length + r.devotionals.length;
+    r.profiles.length + r.posts.length + r.prayers.length + r.events.length + r.resources.length +
+    r.devotionals.length + r.studyDays.length;
 
   const counts: Record<Filter, number> = {
     all: total,
@@ -98,21 +127,39 @@ export default function SearchPage() {
     events: r.events.length,
     resources: r.resources.length,
     devotionals: r.devotionals.length,
+    studies: r.studyDays.length,
   };
 
   const show = (kind: Exclude<Filter, 'all'>) => filter === 'all' || filter === kind;
+  const parsed = q.trim() ? parseScriptureRef(q.trim()) : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="font-display text-3xl">Search</h1>
       <form onSubmit={onSearch} className="flex gap-2">
-        <Input name="q" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Input
+          name="q"
+          placeholder="Search by name, topic, or scripture (e.g. Prov 3:5)"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
         <Button type="submit" loading={busy}>Search</Button>
       </form>
 
+      {/* Scripture-reference hint: when the query parses as a Bible
+          reference, surface that we'll search devotionals/study days
+          for both the typed form and the canonical book name. */}
+      {parsed && (
+        <p className="rounded-2xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700">
+          <BookOpenCheck size={12} className="mr-1 inline -mt-0.5" />
+          Searching scripture for <strong>{parsed.book}{parsed.remainder ? ` ${parsed.remainder}` : ''}</strong>{' '}
+          across devotionals and Bible studies.
+        </p>
+      )}
+
       {results && (
         <div className="flex flex-wrap gap-2">
-          {(['all', 'sisters', 'posts', 'prayers', 'events', 'resources', 'devotionals'] as Filter[]).map((f) => (
+          {(['all', 'sisters', 'posts', 'prayers', 'events', 'resources', 'devotionals', 'studies'] as Filter[]).map((f) => (
             <button
               key={f}
               type="button"
@@ -234,6 +281,33 @@ export default function SearchPage() {
                         <Highlight text={res.description} term={q} />
                       </p>
                     )}
+                  </Card>
+                </Link>
+              ))}
+            </section>
+          )}
+          {show('studies') && r.studyDays.length > 0 && (
+            <section>
+              <SectionTitle>
+                <span className="inline-flex items-center gap-2">
+                  <BookOpenCheck size={16} className="text-brand-500" /> Bible studies
+                </span>
+              </SectionTitle>
+              {r.studyDays.map((d) => (
+                <Link key={d.id} to="/study">
+                  <Card className="mb-2 hover:bg-surface-raised">
+                    <p className="text-[11px] uppercase tracking-wide text-brand-600">
+                      {d.study?.title ?? 'Bible study'} · Day {d.day_number}
+                    </p>
+                    <h3 className="font-display text-lg">
+                      <Highlight text={d.scripture_ref} term={q} />
+                    </h3>
+                    <p className="text-xs italic text-app-muted line-clamp-2">
+                      <Highlight text={d.scripture_text} term={q} />
+                    </p>
+                    <p className="mt-1 text-sm line-clamp-2">
+                      <Highlight text={d.reflection} term={q} />
+                    </p>
                   </Card>
                 </Link>
               ))}
