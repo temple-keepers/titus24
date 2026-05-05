@@ -1,45 +1,106 @@
-import { useState, type FormEvent } from 'react';
-import { Search as SearchIcon } from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Search as SearchIcon, Library, BookOpen } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { Avatar } from '../../components/Avatar';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import type { Post, PrayerRequest, Profile, EventRow } from '../../lib/database.types';
+import type { Post, PrayerRequest, Profile, EventRow, Resource, DailyDevotional } from '../../lib/database.types';
 import { timeAgo } from '../../lib/dates';
+import { cn } from '../../lib/cn';
+
+type Filter = 'all' | 'sisters' | 'posts' | 'prayers' | 'events' | 'resources' | 'devotionals';
 
 interface Results {
   posts: Post[];
   prayers: PrayerRequest[];
   profiles: Profile[];
   events: EventRow[];
+  resources: Resource[];
+  devotionals: DailyDevotional[];
 }
 
+const EMPTY: Results = { posts: [], prayers: [], profiles: [], events: [], resources: [], devotionals: [] };
+
 export default function SearchPage() {
-  const [q, setQ] = useState('');
+  const [params, setParams] = useSearchParams();
+  const [q, setQ] = useState(params.get('q') ?? '');
+  const [filter, setFilter] = useState<Filter>('all');
   const [results, setResults] = useState<Results | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onSearch(e: FormEvent) {
-    e.preventDefault();
-    if (!q.trim()) return;
+  async function runSearch(query: string) {
+    if (!query.trim()) return;
     setBusy(true);
-    const term = `%${q.trim()}%`;
-    const [posts, prayers, profiles, events] = await Promise.all([
+    const term = `%${query.trim()}%`;
+    const [posts, prayers, profiles, events, resources, devotionals] = await Promise.all([
       supabase.from('posts').select('*').ilike('content', term).limit(20),
       supabase.from('prayer_requests').select('*').ilike('content', term).eq('is_anonymous', false).limit(20),
-      supabase.from('profiles').select('*').or(`display_name.ilike.${term},first_name.ilike.${term},city.ilike.${term}`).limit(20),
-      supabase.from('events').select('*').or(`title.ilike.${term},description.ilike.${term}`).limit(20),
+      supabase
+        .from('profiles')
+        .select('*')
+        .or(
+          `display_name.ilike.${term},first_name.ilike.${term},last_name.ilike.${term},city.ilike.${term},country.ilike.${term},profession.ilike.${term},about.ilike.${term}`
+        )
+        .limit(20),
+      supabase.from('events').select('*').or(`title.ilike.${term},description.ilike.${term},location.ilike.${term}`).limit(20),
+      supabase
+        .from('resources')
+        .select('*')
+        .eq('is_published', true)
+        .or(`title.ilike.${term},description.ilike.${term},category.ilike.${term}`)
+        .limit(20),
+      supabase
+        .from('daily_devotionals')
+        .select('id, date, theme, scripture_ref, scripture_text, reflection, affirmation, prayer, created_by, created_at')
+        .or(`theme.ilike.${term},scripture_ref.ilike.${term},scripture_text.ilike.${term},reflection.ilike.${term}`)
+        .order('date', { ascending: false })
+        .limit(20),
     ]);
     setResults({
       posts: (posts.data as Post[] | null) ?? [],
       prayers: (prayers.data as PrayerRequest[] | null) ?? [],
       profiles: (profiles.data as Profile[] | null) ?? [],
       events: (events.data as EventRow[] | null) ?? [],
+      resources: (resources.data as Resource[] | null) ?? [],
+      devotionals: (devotionals.data as DailyDevotional[] | null) ?? [],
     });
     setBusy(false);
   }
+
+  // Run an initial search if the URL already has ?q=…, e.g. when a sister
+  // tapped a search link from elsewhere in the app.
+  useEffect(() => {
+    const initial = params.get('q');
+    if (initial && !results) {
+      void runSearch(initial);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function onSearch(e: FormEvent) {
+    e.preventDefault();
+    if (!q.trim()) return;
+    setParams({ q: q.trim() });
+    void runSearch(q);
+  }
+
+  const r = results ?? EMPTY;
+  const total =
+    r.profiles.length + r.posts.length + r.prayers.length + r.events.length + r.resources.length + r.devotionals.length;
+
+  const counts: Record<Filter, number> = {
+    all: total,
+    sisters: r.profiles.length,
+    posts: r.posts.length,
+    prayers: r.prayers.length,
+    events: r.events.length,
+    resources: r.resources.length,
+    devotionals: r.devotionals.length,
+  };
+
+  const show = (kind: Exclude<Filter, 'all'>) => filter === 'all' || filter === kind;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -49,19 +110,54 @@ export default function SearchPage() {
         <Button type="submit" loading={busy}>Search</Button>
       </form>
 
-      {!results ? null : (
+      {results && (
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'sisters', 'posts', 'prayers', 'events', 'resources', 'devotionals'] as Filter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              disabled={counts[f] === 0 && f !== 'all'}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-semibold capitalize',
+                filter === f
+                  ? 'border-brand-500 bg-brand-500 text-white'
+                  : 'border-app text-app-muted hover:bg-surface-raised',
+                counts[f] === 0 && f !== 'all' && 'cursor-not-allowed opacity-40'
+              )}
+            >
+              {f === 'all' ? 'All' : f}
+              {' '}({counts[f]})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!results ? null : total === 0 ? (
+        <EmptyState title="No matches" body="Try a different word, sister." icon={<SearchIcon size={24} />} />
+      ) : (
         <>
-          {results.profiles.length > 0 && (
+          {show('sisters') && r.profiles.length > 0 && (
             <section>
               <SectionTitle>Sisters</SectionTitle>
-              {results.profiles.map((p) => (
+              {r.profiles.map((p) => (
                 <Link key={p.id} to={`/profile/${p.id}`}>
                   <Card className="mb-2 hover:bg-surface-raised">
                     <div className="flex items-center gap-3">
                       <Avatar size={36} url={p.avatar_url} name={p.display_name ?? p.first_name} />
-                      <div>
-                        <div className="text-sm font-semibold">{p.display_name ?? p.first_name}</div>
-                        <div className="text-xs text-app-muted">{[p.city, p.country].filter(Boolean).join(', ')}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">
+                          <Highlight text={p.display_name ?? p.first_name ?? ''} term={q} />
+                        </div>
+                        <div className="truncate text-xs text-app-muted">
+                          <Highlight text={[p.city, p.country].filter(Boolean).join(', ')} term={q} />
+                          {p.profession && (
+                            <>
+                              {' · '}
+                              <Highlight text={p.profession} term={q} />
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -69,44 +165,126 @@ export default function SearchPage() {
               ))}
             </section>
           )}
-          {results.posts.length > 0 && (
+          {show('posts') && r.posts.length > 0 && (
             <section>
               <SectionTitle>Posts</SectionTitle>
-              {results.posts.map((p) => (
+              {r.posts.map((p) => (
                 <Card key={p.id} className="mb-2">
-                  <p className="text-sm whitespace-pre-wrap line-clamp-3">{p.content}</p>
-                  <div className="text-[11px] text-app-muted mt-1">{timeAgo(p.created_at)}</div>
+                  <p className="text-sm whitespace-pre-wrap line-clamp-3">
+                    <Highlight text={p.content} term={q} />
+                  </p>
+                  <div className="mt-1 text-[11px] text-app-muted">{timeAgo(p.created_at)}</div>
                 </Card>
               ))}
             </section>
           )}
-          {results.prayers.length > 0 && (
+          {show('prayers') && r.prayers.length > 0 && (
             <section>
               <SectionTitle>Prayer Wall</SectionTitle>
-              {results.prayers.map((p) => (
-                <Card key={p.id} className="mb-2">
-                  <p className="text-sm whitespace-pre-wrap line-clamp-3">{p.content}</p>
-                  <div className="text-[11px] text-app-muted mt-1 capitalize">{p.category}</div>
-                </Card>
+              {r.prayers.map((p) => (
+                <Link key={p.id} to="/prayer">
+                  <Card className="mb-2 hover:bg-surface-raised">
+                    <p className="text-sm whitespace-pre-wrap line-clamp-3">
+                      <Highlight text={p.content} term={q} />
+                    </p>
+                    <div className="mt-1 text-[11px] capitalize text-app-muted">{p.category}</div>
+                  </Card>
+                </Link>
               ))}
             </section>
           )}
-          {results.events.length > 0 && (
+          {show('events') && r.events.length > 0 && (
             <section>
               <SectionTitle>Events</SectionTitle>
-              {results.events.map((e) => (
-                <Card key={e.id} className="mb-2">
-                  <h3 className="font-display text-lg">{e.title}</h3>
-                  <p className="text-xs text-app-muted">{e.date}</p>
-                </Card>
+              {r.events.map((e) => (
+                <Link key={e.id} to="/events">
+                  <Card className="mb-2 hover:bg-surface-raised">
+                    <h3 className="font-display text-lg">
+                      <Highlight text={e.title} term={q} />
+                    </h3>
+                    <p className="text-xs text-app-muted">{e.date}{e.location ? ` · ${e.location}` : ''}</p>
+                    {e.description && (
+                      <p className="mt-1 text-sm line-clamp-2">
+                        <Highlight text={e.description} term={q} />
+                      </p>
+                    )}
+                  </Card>
+                </Link>
               ))}
             </section>
           )}
-          {results.profiles.length + results.posts.length + results.prayers.length + results.events.length === 0 && (
-            <EmptyState title="No matches" body="Try a different word, sister." icon={<SearchIcon size={24} />} />
+          {show('resources') && r.resources.length > 0 && (
+            <section>
+              <SectionTitle>
+                <span className="inline-flex items-center gap-2">
+                  <Library size={16} className="text-brand-500" /> Resources
+                </span>
+              </SectionTitle>
+              {r.resources.map((res) => (
+                <Link key={res.id} to="/resources">
+                  <Card className="mb-2 hover:bg-surface-raised">
+                    <h3 className="font-display text-lg">
+                      <Highlight text={res.title} term={q} />
+                    </h3>
+                    <p className="text-xs text-app-muted">
+                      <Highlight text={res.category} term={q} />
+                    </p>
+                    {res.description && (
+                      <p className="mt-1 text-sm line-clamp-2">
+                        <Highlight text={res.description} term={q} />
+                      </p>
+                    )}
+                  </Card>
+                </Link>
+              ))}
+            </section>
+          )}
+          {show('devotionals') && r.devotionals.length > 0 && (
+            <section>
+              <SectionTitle>
+                <span className="inline-flex items-center gap-2">
+                  <BookOpen size={16} className="text-brand-500" /> Devotionals
+                </span>
+              </SectionTitle>
+              {r.devotionals.map((d) => (
+                <Card key={d.id} className="mb-2">
+                  <p className="text-[11px] uppercase tracking-wide text-brand-600">{d.date}</p>
+                  <h3 className="font-display text-lg">
+                    <Highlight text={d.theme} term={q} />
+                  </h3>
+                  <p className="text-xs italic text-app-muted">
+                    <Highlight text={d.scripture_ref} term={q} />
+                  </p>
+                  <p className="mt-1 text-sm line-clamp-2">
+                    <Highlight text={d.reflection} term={q} />
+                  </p>
+                </Card>
+              ))}
+            </section>
           )}
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Wraps every case-insensitive occurrence of `term` inside `text` with a
+ * highlighted span. Splitting on a regex with a capture group keeps the
+ * matching characters in their original casing.
+ */
+function Highlight({ text, term }: { text: string; term: string }): ReactNode {
+  const t = term.trim();
+  if (!t) return text;
+  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="rounded bg-brand-100 px-0.5 text-brand-800">
+        {part}
+      </mark>
+    ) : (
+      <span key={i}>{part}</span>
+    )
   );
 }

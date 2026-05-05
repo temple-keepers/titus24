@@ -176,6 +176,22 @@ function useUnreadNotificationCount(): number {
       .then(({ count: c }) => setCount(c ?? 0));
   }, [user, location.pathname]);
 
+  // Mirror the unread count onto the OS-level app icon badge (PWA installed
+  // to home screen). Supported on Chrome/Edge desktop + Android, and iOS 16.4+
+  // installed PWAs. Silent no-op everywhere else.
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (!nav.setAppBadge) return;
+    if (count > 0) {
+      void nav.setAppBadge(count).catch(() => {});
+    } else {
+      void nav.clearAppBadge?.().catch(() => {});
+    }
+  }, [count]);
+
   return count;
 }
 

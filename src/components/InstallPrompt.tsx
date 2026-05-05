@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Share, X } from 'lucide-react';
+import { Download, Share, X, PlusSquare } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -106,13 +106,49 @@ export function InstallPrompt() {
           >
             <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <h3 className="font-display text-lg font-semibold">Install Titus 2:4</h3>
             {iosHint ? (
-              <p className="mt-1 text-sm opacity-95">
-                Tap <Share size={14} className="inline -mt-0.5" /> <span className="font-semibold">Share</span>{' '}
-                in Safari, then <span className="font-semibold">Add to Home Screen</span>.
-              </p>
+              <>
+                <p className="mt-1 text-sm opacity-95">
+                  Add it to your home screen for one-tap access and notifications:
+                </p>
+                <ol className="mt-2 space-y-1.5 text-sm opacity-95">
+                  <li className="flex items-start gap-2">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/25 text-[11px] font-bold">
+                      1
+                    </span>
+                    <span>
+                      Tap{' '}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-white/25 px-1.5 py-0.5 text-xs font-semibold">
+                        <Share size={12} /> Share
+                      </span>{' '}
+                      at the bottom of Safari
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/25 text-[11px] font-bold">
+                      2
+                    </span>
+                    <span>
+                      Scroll and tap{' '}
+                      <span className="inline-flex items-center gap-1 rounded-md bg-white/25 px-1.5 py-0.5 text-xs font-semibold">
+                        <PlusSquare size={12} /> Add to Home Screen
+                      </span>
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/25 text-[11px] font-bold">
+                      3
+                    </span>
+                    <span>Tap <span className="font-semibold">Add</span> in the top right</span>
+                  </li>
+                </ol>
+                <p className="mt-2 text-[11px] opacity-80">
+                  Make sure you're in Safari (not in-app browser). On Chrome on iPhone, tap the
+                  three dots, then Share → Add to Home Screen.
+                </p>
+              </>
             ) : (
               <p className="mt-1 text-sm opacity-95">
                 Add it to your home screen for quick access, sister.
