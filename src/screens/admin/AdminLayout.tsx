@@ -30,16 +30,14 @@ export default function AdminLayout() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <header className="flex items-end justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-app-muted">Leadership</p>
-          <h1 className="font-display text-3xl">Admin Dashboard</h1>
-        </div>
+      <header>
+        <p className="text-xs uppercase tracking-wide text-app-muted">Leadership</p>
+        <h1 className="font-display text-2xl sm:text-3xl">Admin Dashboard</h1>
       </header>
       {/* Mobile: horizontal scrolling chip bar so admins on phones can
           actually reach every section. */}
-      <nav className="-mx-3 overflow-x-auto px-3 sm:hidden no-scrollbar">
-        <div className="flex gap-2 pb-1">
+      <nav className="no-scrollbar -mx-3 overflow-x-auto px-3 sm:hidden">
+        <div className="flex w-max gap-2 whitespace-nowrap pb-1">
           {ADMIN_NAV.map((n) => (
             <NavLink
               key={n.to}

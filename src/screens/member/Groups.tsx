@@ -114,10 +114,10 @@ export default function Groups() {
         visible.map((p) => (
           <Card key={p.id}>
             <div className="flex items-start gap-3">
-              <div className="rounded-2xl bg-sage-100 p-3 text-sage-700">
+              <div className="shrink-0 rounded-2xl bg-sage-100 p-3 text-sage-700">
                 <Users size={20} />
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <h2 className="font-display text-xl flex items-center gap-2">
                   {p.name}
                   {p.visibility === 'private' ? (

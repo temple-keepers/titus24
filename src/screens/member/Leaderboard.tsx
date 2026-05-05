@@ -119,10 +119,10 @@ export default function Leaderboard() {
       <h1 className="font-display text-3xl">Leaderboard</h1>
       <Card className="bg-surface-raised">
         <div className="flex items-center gap-4">
-          <div className="rounded-2xl bg-brand-100 p-3 text-brand-600">
+          <div className="shrink-0 rounded-2xl bg-brand-100 p-3 text-brand-600">
             <Flame size={24} />
           </div>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <p className="text-sm text-app-muted">Daily check-in</p>
             <p className="font-display text-xl"><span className="font-sans tabular-nums">{streak}</span> day streak</p>
           </div>
@@ -147,11 +147,11 @@ export default function Leaderboard() {
         rows.map((r, i) => (
           <Card key={r.user.id}>
             <div className="flex items-center gap-3">
-              <span className="font-sans text-xl font-semibold text-app-muted w-6 tabular-nums">{i + 1}</span>
+              <span className="w-6 shrink-0 font-sans text-xl font-semibold text-app-muted tabular-nums">{i + 1}</span>
               <Avatar size={36} url={r.user.avatar_url} name={r.user.display_name ?? r.user.first_name} />
-              <div className="flex-1">
-                <div className="text-sm font-semibold">{r.user.display_name ?? r.user.first_name}</div>
-                <div className="text-[11px] text-app-muted">{[r.user.city, r.user.country].filter(Boolean).join(', ')}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{r.user.display_name ?? r.user.first_name}</div>
+                <div className="truncate text-[11px] text-app-muted">{[r.user.city, r.user.country].filter(Boolean).join(', ')}</div>
               </div>
               <span className="font-sans text-xl font-semibold text-brand-600 tabular-nums">{r.points}</span>
             </div>

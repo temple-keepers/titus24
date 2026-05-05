@@ -213,8 +213,8 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
     <Card className={cn(post.is_pinned && 'ring-2 ring-brand-300')}>
       <header className="mb-3 flex items-center gap-3">
         <Avatar size={40} url={post.author?.avatar_url ?? null} name={post.author?.display_name ?? post.author?.first_name ?? 'Sister'} />
-        <div className="flex-1">
-          <div className="text-sm font-semibold">{post.author?.display_name ?? post.author?.first_name ?? 'Sister'}</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{post.author?.display_name ?? post.author?.first_name ?? 'Sister'}</div>
           <div className="text-[11px] text-app-muted">{timeAgo(post.created_at)}</div>
         </div>
         {post.is_pinned && <Pin size={16} className="text-brand-500" aria-label="Pinned" />}
@@ -355,11 +355,11 @@ function CommentBubble({
         url={comment.author?.avatar_url ?? null}
         name={comment.author?.display_name ?? comment.author?.first_name ?? 'Sister'}
       />
-      <div className="flex-1 rounded-2xl bg-surface-raised px-3 py-2">
-        <div className="text-xs font-semibold">
+      <div className="min-w-0 flex-1 rounded-2xl bg-surface-raised px-3 py-2">
+        <div className="truncate text-xs font-semibold">
           {comment.author?.display_name ?? comment.author?.first_name ?? 'Sister'}
         </div>
-        <div className="text-sm">{comment.content}</div>
+        <div className="break-words text-sm">{comment.content}</div>
         <div className="mt-1 flex items-center gap-3 text-[10px] text-app-muted">
           <span>{timeAgo(comment.created_at)}</span>
           <button

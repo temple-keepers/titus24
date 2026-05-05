@@ -94,17 +94,17 @@ export default function Home() {
           )}
           {events.map((ev) => (
             <Card key={ev.id} className="flex items-start gap-3">
-              <div className="rounded-2xl bg-brand-100 px-3 py-2 text-center">
+              <div className="shrink-0 rounded-2xl bg-brand-100 px-3 py-2 text-center">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">
                   {new Date(ev.date).toLocaleDateString(undefined, { month: 'short' })}
                 </div>
-                <div className="font-display text-2xl text-brand-700">
+                <div className="font-sans text-2xl font-bold tabular-nums text-brand-700">
                   {new Date(ev.date).getDate()}
                 </div>
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <h3 className="font-display text-lg">{ev.title}</h3>
-                {ev.location && <p className="text-xs text-app-muted">{ev.location}</p>}
+                {ev.location && <p className="text-xs text-app-muted truncate">{ev.location}</p>}
                 {ev.description && <p className="mt-1 text-sm line-clamp-2">{ev.description}</p>}
               </div>
             </Card>
@@ -124,12 +124,12 @@ export default function Home() {
             <Card key={p.id}>
               <header className="mb-2 flex items-center gap-3">
                 <Avatar size={36} url={p.author?.avatar_url ?? null} name={p.author?.display_name ?? p.author?.first_name ?? 'Sister'} />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold">{p.author?.display_name ?? p.author?.first_name ?? 'Sister'}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{p.author?.display_name ?? p.author?.first_name ?? 'Sister'}</div>
                   <div className="text-[11px] text-app-muted">{timeAgo(p.created_at)}</div>
                 </div>
               </header>
-              <p className="text-sm leading-6 whitespace-pre-wrap">{p.content}</p>
+              <p className="break-words text-sm leading-6 whitespace-pre-wrap">{p.content}</p>
               {p.image_url && (
                 <img src={p.image_url} alt="" className="mt-3 w-full rounded-2xl object-cover" loading="lazy" />
               )}

@@ -71,11 +71,11 @@ export function AppShell() {
   }, [profile?.role]);
 
   return (
-    <div className="min-h-screen bg-app text-app">
+    <div className="min-h-screen overflow-x-clip bg-app text-app">
       <TopBar />
       <div className="mx-auto flex max-w-7xl">
         <SideNav items={items} />
-        <main className="flex-1 px-3 pt-4 pb-28 sm:px-6 lg:pb-8">
+        <main className="min-w-0 flex-1 px-3 pt-4 pb-28 sm:px-6 lg:pb-8">
           <Outlet />
         </main>
       </div>
