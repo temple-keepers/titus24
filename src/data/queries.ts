@@ -298,6 +298,12 @@ export async function listAlbumPhotos(albumId: string): Promise<GalleryPhoto[]> 
 // ---------- Resources ----------
 
 export async function listResources(): Promise<Resource[]> {
-  const { data } = await supabase.from('resources').select('*').order('category', { ascending: true });
+  // Public library only shows approved (is_published=true) rows. Member
+  // submissions live in is_published=false until a leader approves them.
+  const { data } = await supabase
+    .from('resources')
+    .select('*')
+    .eq('is_published', true)
+    .order('category', { ascending: true });
   return (data as Resource[] | null) ?? [];
 }

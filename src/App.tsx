@@ -62,9 +62,7 @@ const AdminEmail = lazy(() => import('./screens/admin/AdminEmail'));
 const AdminPrayers = lazy(() =>
   import('./screens/admin/AdminSimplePages').then((m) => ({ default: m.AdminPrayers }))
 );
-const AdminResources = lazy(() =>
-  import('./screens/admin/AdminSimplePages').then((m) => ({ default: m.AdminResources }))
-);
+const AdminResources = lazy(() => import('./screens/admin/AdminResources'));
 const AdminStudies = lazy(() =>
   import('./screens/admin/AdminSimplePages').then((m) => ({ default: m.AdminStudies }))
 );
