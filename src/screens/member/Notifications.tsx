@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { Card, EmptyState } from '../../components/Card';
 import { LoadingPage } from '../../components/LoadingPage';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
@@ -45,6 +46,7 @@ export default function Notifications() {
   if (loading) return <LoadingPage />;
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="mx-auto max-w-2xl space-y-3">
       <div className="flex items-end justify-between">
         <h1 className="font-display text-3xl">Notifications</h1>
@@ -78,5 +80,6 @@ export default function Notifications() {
         })
       )}
     </div>
+    </PullToRefresh>
   );
 }

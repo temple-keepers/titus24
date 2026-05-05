@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Avatar } from '../../components/Avatar';
 import { LoadingPage } from '../../components/LoadingPage';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
@@ -21,17 +22,22 @@ export function MessagesIndex() {
   const [convos, setConvos] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  async function refresh() {
     if (!user) return;
-    listConversations(user.id).then((c) => {
-      setConvos(c);
-      setLoading(false);
-    });
+    const c = await listConversations(user.id);
+    setConvos(c);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading) return <LoadingPage />;
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="mx-auto max-w-2xl space-y-3">
       <h1 className="font-display text-3xl">Messages</h1>
       {convos.length === 0 ? (
@@ -66,6 +72,7 @@ export function MessagesIndex() {
         ))
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

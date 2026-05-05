@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Calendar, BookOpen, ArrowRight } from 'lucide-react';
 import { Card, ScripturePill, SectionTitle, EmptyState } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { LoadingPage } from '../../components/LoadingPage';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
 import { getTodayDevotional, hasReadToday, listPosts, listUpcomingEvents } from '../../data/queries';
 import type { DailyDevotional, EventRow } from '../../lib/database.types';
@@ -21,30 +22,35 @@ export default function Home() {
 
   const today = todayLocalISO();
 
-  useEffect(() => {
+  const refresh = useCallback(async () => {
     if (!user) return;
-    let active = true;
-    Promise.all([
+    const [dev, read, ps, evs] = await Promise.all([
       getTodayDevotional(today),
       hasReadToday(user.id, today),
       listPosts(8),
       listUpcomingEvents(7),
-    ]).then(([dev, read, ps, evs]) => {
+    ]);
+    setDevotional(dev);
+    setReadToday(read);
+    setPosts(ps);
+    setEvents(evs);
+    setLoading(false);
+  }, [user, today]);
+
+  useEffect(() => {
+    let active = true;
+    refresh().then(() => {
       if (!active) return;
-      setDevotional(dev);
-      setReadToday(read);
-      setPosts(ps);
-      setEvents(evs);
-      setLoading(false);
     });
     return () => {
       active = false;
     };
-  }, [user, today]);
+  }, [refresh]);
 
   if (loading) return <LoadingPage />;
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="mx-auto max-w-3xl space-y-5">
       <header className="px-1">
         <p className="text-xs uppercase tracking-wide text-app-muted">{relativeDayLabel(today)}</p>
@@ -136,5 +142,6 @@ export default function Home() {
         </div>
       </section>
     </div>
+    </PullToRefresh>
   );
 }

@@ -6,6 +6,7 @@ import { Textarea } from '../../components/Input';
 import { Modal } from '../../components/Modal';
 import { Avatar } from '../../components/Avatar';
 import { LoadingPage } from '../../components/LoadingPage';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
@@ -39,6 +40,7 @@ export default function PrayerWall() {
   }, [tab]);
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="mx-auto max-w-2xl space-y-4">
       <header className="flex items-end justify-between">
         <div>
@@ -84,6 +86,7 @@ export default function PrayerWall() {
         />
       </Modal>
     </div>
+    </PullToRefresh>
   );
 }
 

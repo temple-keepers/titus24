@@ -5,6 +5,7 @@ import { Button } from '../../components/Button';
 import { Textarea, Input } from '../../components/Input';
 import { Avatar } from '../../components/Avatar';
 import { LoadingPage } from '../../components/LoadingPage';
+import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
@@ -62,6 +63,7 @@ export default function Community() {
   if (loading) return <LoadingPage />;
 
   return (
+    <PullToRefresh onRefresh={refresh}>
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="font-display text-3xl">Community</h1>
       <Card>
@@ -104,6 +106,7 @@ export default function Community() {
         <PostCard key={p.id} post={p} onRefresh={refresh} canPin={isAdmin(profile?.role)} />
       ))}
     </div>
+    </PullToRefresh>
   );
 }
 
