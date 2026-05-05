@@ -172,12 +172,43 @@ function ComposeForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+interface PrayerResponseRow {
+  id: string;
+  prayer_request_id: string;
+  user_id: string;
+  content: string | null;
+  created_at: string;
+  user: {
+    id: string;
+    display_name: string | null;
+    first_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
 function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChange: () => void }) {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [busy, setBusy] = useState(false);
-  const [praying, setPraying] = useState(false);
+  const [showResponses, setShowResponses] = useState(false);
+  const [responses, setResponses] = useState<PrayerResponseRow[]>([]);
+  const [encouragement, setEncouragement] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
   const isOwner = user?.id === item.author_id;
+
+  async function loadResponses() {
+    const { data } = await supabase
+      .from('prayer_responses')
+      .select('id, prayer_request_id, user_id, content, created_at, user:profiles!prayer_responses_user_id_fkey(id, display_name, first_name, avatar_url)')
+      .eq('prayer_request_id', item.id)
+      .order('created_at', { ascending: true });
+    setResponses(((data as unknown) as PrayerResponseRow[] | null) ?? []);
+  }
+
+  useEffect(() => {
+    if (showResponses) void loadResponses();
+  }, [showResponses, item.id]);
 
   async function pray() {
     if (!user) return;
@@ -185,12 +216,34 @@ function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChang
     const { error } = await supabase.from('prayer_responses').insert({
       prayer_request_id: item.id,
       user_id: user.id,
-      content: null,
+      content: encouragement.trim() || null,
     });
     setBusy(false);
     if (failIfError(error, 'send your prayer', addToast)) return;
-    setPraying(true);
+    setEncouragement('');
     addToast({ kind: 'success', title: 'Your prayer was sent', body: 'Your sister will know you stood with her.' });
+    if (showResponses) void loadResponses();
+    onChange();
+  }
+
+  async function saveEdit(id: string) {
+    setBusy(true);
+    const { error } = await supabase
+      .from('prayer_responses')
+      .update({ content: editText.trim() || null })
+      .eq('id', id);
+    setBusy(false);
+    if (failIfError(error, 'edit your encouragement', addToast)) return;
+    setEditingId(null);
+    setEditText('');
+    void loadResponses();
+  }
+
+  async function deleteResponse(id: string) {
+    if (!confirm('Delete your encouragement?')) return;
+    const { error } = await supabase.from('prayer_responses').delete().eq('id', id);
+    if (failIfError(error, 'delete your encouragement', addToast)) return;
+    void loadResponses();
     onChange();
   }
 
@@ -207,6 +260,8 @@ function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChang
   }
 
   const author = item.is_anonymous ? null : item.author;
+  const myResponses = responses.filter((r) => r.user_id === user?.id);
+  const alreadyPrayed = myResponses.length > 0;
 
   return (
     <Card>
@@ -214,12 +269,12 @@ function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChang
         {author ? (
           <Avatar size={36} url={author.avatar_url ?? null} name={author.display_name ?? author.first_name} />
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-raised text-app-muted">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-raised text-app-muted">
             <Sparkles size={16} />
           </div>
         )}
-        <div className="flex-1">
-          <div className="text-sm font-semibold">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">
             {author ? author.display_name ?? author.first_name ?? 'Sister' : 'A sister (anonymous)'}
           </div>
           <div className="text-[11px] text-app-muted">
@@ -232,32 +287,122 @@ function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChang
           </span>
         )}
       </header>
-      <p className="text-sm leading-7 whitespace-pre-wrap">{item.content}</p>
-      <div className="mt-3 flex items-center gap-3">
-        {!item.is_answered && (
-          <Button
-            size="sm"
-            variant={praying ? 'sage' : 'secondary'}
-            loading={busy}
-            onClick={pray}
-            leadingIcon={<HandHeart size={14} />}
-          >
-            {praying ? 'Praying' : "I'm praying"}
-          </Button>
-        )}
-        <span className="text-xs text-app-muted">
+      <p className="break-words text-sm leading-7 whitespace-pre-wrap">{item.content}</p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setShowResponses((v) => !v)}
+          className="text-xs font-semibold text-brand-600"
+        >
           {item.response_count === 0
             ? 'Be the first to pray'
             : item.response_count === 1
             ? '1 sister prayed'
             : `${item.response_count} sisters prayed`}
-        </span>
+          {' · '}
+          {showResponses ? 'Hide' : 'Show'}
+        </button>
         {isOwner && !item.is_answered && (
           <button onClick={markAnswered} className="ml-auto text-xs font-semibold text-brand-600">
             Mark answered
           </button>
         )}
       </div>
+
+      {showResponses && (
+        <div className="mt-3 space-y-3 border-t border-app pt-3">
+          {/* Compose / re-pray */}
+          {!item.is_answered && (
+            <div className="space-y-2">
+              <Textarea
+                label={alreadyPrayed ? 'Send another encouragement (optional)' : 'Pray with her — add an encouragement (optional)'}
+                value={encouragement}
+                onChange={(e) => setEncouragement(e.target.value)}
+                rows={2}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={busy}
+                onClick={pray}
+                leadingIcon={<HandHeart size={14} />}
+              >
+                {encouragement.trim() ? 'Send encouragement' : "I'm praying"}
+              </Button>
+            </div>
+          )}
+
+          {/* Existing encouragements */}
+          {responses.length === 0 && (
+            <p className="text-xs text-app-muted">No encouragements yet — be the first.</p>
+          )}
+          {responses.map((r) => {
+            const mine = r.user_id === user?.id;
+            const isEditing = editingId === r.id;
+            return (
+              <div key={r.id} className="flex items-start gap-2">
+                <Avatar
+                  size={24}
+                  url={r.user?.avatar_url ?? null}
+                  name={r.user?.display_name ?? r.user?.first_name}
+                />
+                <div className="min-w-0 flex-1 rounded-2xl bg-surface-raised px-3 py-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="truncate font-semibold">
+                      {r.user?.display_name ?? r.user?.first_name ?? 'Sister'}
+                    </span>
+                    <span className="text-[10px] text-app-muted">{timeAgo(r.created_at)}</span>
+                  </div>
+                  {isEditing ? (
+                    <div className="mt-1 space-y-2">
+                      <Textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        rows={2}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" loading={busy} onClick={() => saveEdit(r.id)}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {r.content ? (
+                        <p className="mt-0.5 break-words text-sm">{r.content}</p>
+                      ) : (
+                        <p className="mt-0.5 text-xs italic text-app-muted">Stood with her in prayer.</p>
+                      )}
+                      {mine && (
+                        <div className="mt-1 flex gap-3 text-[11px] font-semibold">
+                          <button
+                            onClick={() => {
+                              setEditingId(r.id);
+                              setEditText(r.content ?? '');
+                            }}
+                            className="text-brand-600"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => void deleteResponse(r.id)}
+                            className="text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
