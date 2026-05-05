@@ -175,6 +175,9 @@ function OwnProfileEditor({
   const [profession, setProfession] = useState(profile.profession ?? '');
   const [skills, setSkills] = useState<string[]>(profile.skills ?? []);
   const [readReceipts, setReadReceipts] = useState<boolean>(profile.read_receipts_enabled ?? true);
+  const [notifyPrefs, setNotifyPrefs] = useState<Record<string, boolean>>(
+    (profile.notify_prefs as Record<string, boolean> | undefined) ?? {}
+  );
   const [busy, setBusy] = useState(false);
 
   // Phone number lives on contact_info (leader-only RLS), so we hydrate
@@ -219,6 +222,7 @@ function OwnProfileEditor({
         profession: profession.trim() || null,
         skills,
         read_receipts_enabled: readReceipts,
+        notify_prefs: notifyPrefs,
       })
       .eq('id', profile.id);
 
@@ -448,6 +452,9 @@ function OwnProfileEditor({
           </label>
           <div className="mt-4 border-t border-app pt-4">
             <PushToggle userId={profile.id} />
+          </div>
+          <div className="mt-4 border-t border-app pt-4">
+            <NotifyPrefs value={notifyPrefs} onChange={setNotifyPrefs} />
           </div>
         </Card>
 
@@ -718,6 +725,7 @@ function PushToggle({ userId }: { userId: string }) {
   const [supported] = useState(() => pushSupported());
   const [enabled, setEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (!supported) return;
@@ -748,6 +756,32 @@ function PushToggle({ userId }: { userId: string }) {
     addToast({ kind: 'info', title: 'Push notifications off' });
   }
 
+  async function sendTest() {
+    setTesting(true);
+    // Self-notify by inserting a notifications row for this user. The DB
+    // trigger will fan out to dispatch-push, which will hit every push
+    // subscription registered for this user_id (including the one on
+    // *this* device).
+    const { error } = await supabase.from('notifications').insert({
+      user_id: userId,
+      type: 'general',
+      title: 'Test ping',
+      body: 'If you see this on your phone, push is working.',
+      link: '/notifications',
+      is_read: false,
+    });
+    setTesting(false);
+    if (error) {
+      addToast({ kind: 'error', title: 'Test failed', body: error.message });
+      return;
+    }
+    addToast({
+      kind: 'success',
+      title: 'Test sent',
+      body: 'Wait a few seconds for the push to arrive.',
+    });
+  }
+
   if (!supported) {
     return (
       <p className="text-xs text-app-muted">
@@ -758,26 +792,96 @@ function PushToggle({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 text-brand-500">
-        {enabled ? <Bell size={18} /> : <BellOff size={18} />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">Push notifications</p>
-        <p className="text-xs text-app-muted">
-          Get a phone ping when a sister messages you, replies to your prayer, or a leader posts
-          something for you. You can switch this off any time.
-        </p>
+    <div>
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 text-brand-500">
+          {enabled ? <Bell size={18} /> : <BellOff size={18} />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">Push notifications</p>
+          <p className="text-xs text-app-muted">
+            Get a phone ping when a sister messages you, replies to your prayer, or a leader posts
+            something for you. You can switch this off any time.
+          </p>
+        </div>
+        {enabled ? (
+          <Button size="sm" variant="ghost" loading={busy} onClick={turnOff}>
+            Turn off
+          </Button>
+        ) : (
+          <Button size="sm" loading={busy} onClick={turnOn}>
+            Turn on
+          </Button>
+        )}
       </div>
-      {enabled ? (
-        <Button size="sm" variant="ghost" loading={busy} onClick={turnOff}>
-          Turn off
-        </Button>
-      ) : (
-        <Button size="sm" loading={busy} onClick={turnOn}>
-          Turn on
-        </Button>
+      {enabled && (
+        <div className="mt-2 pl-7">
+          <button
+            type="button"
+            onClick={sendTest}
+            disabled={testing}
+            className="text-xs font-semibold text-brand-600 disabled:opacity-50"
+          >
+            {testing ? 'Sending…' : 'Send a test ping'}
+          </button>
+        </div>
       )}
+    </div>
+  );
+}
+
+// ─── Notification preferences ────────────────────────────────────────
+
+const NOTIFY_TYPES: Array<{ key: string; label: string; hint: string }> = [
+  { key: 'message', label: 'Direct messages', hint: 'When a sister sends you a private message.' },
+  { key: 'prayer_response', label: 'Prayers & encouragement', hint: 'When sisters pray for or encourage you.' },
+  { key: 'prayer_request', label: 'New prayer requests (leaders only)', hint: 'When a sister shares a request with the wall.' },
+  { key: 'comment', label: 'Comments on your posts', hint: 'When a sister replies to something you shared.' },
+  { key: 'comment_reply', label: 'Replies to your comments', hint: 'When someone replies in a thread you started.' },
+  { key: 'reaction', label: 'Reactions on your posts', hint: 'Heart, praise, amen, hug.' },
+  { key: 'elder_reply', label: 'Elder Q&A replies', hint: 'When a leader answers a question you asked.' },
+  { key: 'resource_approved', label: 'Resource approvals', hint: 'When a leader approves a resource you suggested.' },
+];
+
+function NotifyPrefs({
+  value,
+  onChange,
+}: {
+  value: Record<string, boolean>;
+  onChange: (next: Record<string, boolean>) => void;
+}) {
+  function toggle(key: string) {
+    // Default is enabled, so storing false means "muted".
+    const current = value[key] !== false;
+    onChange({ ...value, [key]: !current });
+  }
+
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold">What pings you?</p>
+      <p className="mb-3 text-xs text-app-muted">
+        Untick anything you'd rather not be pinged about. The bell still records it; only the
+        phone notification is silenced.
+      </p>
+      <div className="space-y-2">
+        {NOTIFY_TYPES.map((t) => {
+          const enabled = value[t.key] !== false;
+          return (
+            <label key={t.key} className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={() => toggle(t.key)}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="font-semibold">{t.label}</span>
+                <span className="block text-xs text-app-muted">{t.hint}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }

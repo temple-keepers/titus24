@@ -37,8 +37,24 @@ export interface Profile {
   skills: string[];
   read_receipts_enabled: boolean;
   is_founder: boolean;
+  notify_prefs: Partial<Record<NotificationType, boolean>>;
   created_at: string;
 }
+
+/**
+ * Type codes used in `notifications.type` and as keys in
+ * `profiles.notify_prefs` for muting specific kinds of push.
+ */
+export type NotificationType =
+  | 'message'
+  | 'prayer_request'
+  | 'prayer_response'
+  | 'comment'
+  | 'comment_reply'
+  | 'reaction'
+  | 'elder_reply'
+  | 'resource_approved'
+  | 'general';
 
 export interface Post {
   id: string;
