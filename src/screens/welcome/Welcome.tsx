@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Heart,
@@ -18,6 +19,20 @@ import {
  * sisterhood to a sister who hasn't joined yet.
  */
 export default function Welcome() {
+  // Pre-warm the auth chunks during idle time so "I already have an account"
+  // and "Get started free" feel instant instead of triggering a 2–4s parse
+  // (F-004 INP regression).
+  useEffect(() => {
+    const idle =
+      'requestIdleCallback' in window
+        ? (cb: () => void) => (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(cb)
+        : (cb: () => void) => window.setTimeout(cb, 200);
+    idle(() => {
+      void import('../auth/SignIn');
+      void import('../auth/SignUp');
+    });
+  }, []);
+
   return (
     <div
       className="min-h-screen"

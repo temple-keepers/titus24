@@ -226,7 +226,13 @@ function PrayerCard({ item, onChange }: { item: PrayerRequestWithAuthor; onChang
             {praying ? 'Praying' : "I'm praying"}
           </Button>
         )}
-        <span className="text-xs text-app-muted">{item.response_count} prayers</span>
+        <span className="text-xs text-app-muted">
+          {item.response_count === 0
+            ? 'Be the first to pray'
+            : item.response_count === 1
+            ? '1 sister prayed'
+            : `${item.response_count} sisters prayed`}
+        </span>
         {isOwner && !item.is_answered && (
           <button onClick={markAnswered} className="ml-auto text-xs font-semibold text-brand-600">
             Mark answered

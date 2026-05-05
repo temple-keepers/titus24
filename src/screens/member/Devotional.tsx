@@ -69,7 +69,12 @@ export default function Devotional() {
         <p className="leading-7 whitespace-pre-wrap">{devotional.reflection}</p>
       </Card>
       <TipCard title="Affirmation">
-        <p className="font-display text-lg italic">{devotional.affirmation}</p>
+        <p
+          className="font-display text-lg italic font-semibold"
+          style={{ color: 'var(--wine)' }}
+        >
+          {devotional.affirmation}
+        </p>
       </TipCard>
       <Card>
         <h2 className="font-display text-xl mb-2">A prayer</h2>

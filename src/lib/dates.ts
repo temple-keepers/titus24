@@ -49,12 +49,14 @@ export function formatEventTime(date: string, time: string | null, eventTz: stri
   let localLine: string | null = null;
   try {
     // Heuristic: ask Intl what the same wall-clock means in the event tz.
-    const fmt = new Intl.DateTimeFormat('en-GB', {
+    // Use the viewer's browser locale so US users get MM/DD ordering and
+    // 12-hour clock, while UK users still get DD/MM and 24-hour by default.
+    const fmt = new Intl.DateTimeFormat(undefined, {
       timeZone: eventTz,
       dateStyle: 'full',
       timeStyle: 'short',
     });
-    const localFmt = new Intl.DateTimeFormat('en-GB', {
+    const localFmt = new Intl.DateTimeFormat(undefined, {
       dateStyle: 'full',
       timeStyle: 'short',
     });

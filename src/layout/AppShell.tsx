@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Home, Heart, MessageCircle, Users, Calendar, Bell, Search, BookOpen, Settings, Image as ImageIcon, Library, Shield, Award, HelpCircle, HandHeart } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
@@ -44,6 +44,30 @@ export function AppShell() {
   const bottomItems = items.filter((i) => i.showInBottom).slice(0, 4);
   const hasMore = items.length > bottomItems.length;
   if (hasMore) bottomItems.push({ to: '/more', label: 'More', Icon: Settings });
+
+  // Pre-warm the most-clicked screens during idle time so the first
+  // navigation away from Home feels instant (F-004 INP regression).
+  useEffect(() => {
+    const idle =
+      'requestIdleCallback' in window
+        ? (cb: () => void) =>
+            (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(cb)
+        : (cb: () => void) => window.setTimeout(cb, 400);
+    idle(() => {
+      void import('../screens/member/Community');
+      void import('../screens/member/PrayerWall');
+      void import('../screens/member/Groups');
+      void import('../screens/member/Devotional');
+      void import('../screens/member/Notifications');
+      void import('../screens/member/More');
+    });
+    if (isAdmin(profile?.role)) {
+      idle(() => {
+        void import('../screens/admin/AdminLayout');
+        void import('../screens/admin/AdminOverview');
+      });
+    }
+  }, [profile?.role]);
 
   return (
     <div className="min-h-screen bg-app text-app">

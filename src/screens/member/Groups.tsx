@@ -133,20 +133,27 @@ export default function Groups() {
                 </p>
               </div>
               {p.is_member ? (
-                <div className="flex flex-col gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setOpenPodId(p.id)}>
-                    Open
-                  </Button>
-                  <button onClick={() => leave(p)} className="text-xs text-app-muted hover:text-red-600">
-                    Leave
-                  </button>
-                </div>
+                <Button size="sm" variant="secondary" onClick={() => setOpenPodId(p.id)}>
+                  Open
+                </Button>
               ) : (
                 <Button size="sm" onClick={() => join(p)}>
                   Join
                 </Button>
               )}
             </div>
+            {p.is_member && (
+              <div className="mt-3 flex justify-end border-t border-app pt-2">
+                <button
+                  onClick={() => {
+                    if (confirm(`Leave ${p.name}?`)) leave(p);
+                  }}
+                  className="text-xs font-semibold text-app-muted hover:text-red-600"
+                >
+                  Leave group
+                </button>
+              </div>
+            )}
           </Card>
         ))
       )}
