@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { Card, SectionTitle } from '../../components/Card';
 import { LoadingPage } from '../../components/LoadingPage';
 import { supabase } from '../../lib/supabase';
@@ -40,20 +42,27 @@ export default function AdminOverview() {
     <div className="space-y-4">
       <SectionTitle>This week</SectionTitle>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Stat label="Members" value={s.members} />
-        <Stat label="Posts (7d)" value={s.posts7d} />
-        <Stat label="Open prayers" value={s.prayers_open} />
-        <Stat label="Upcoming events" value={s.events_upcoming} />
+        <Stat label="Members" value={s.members} to="/admin/members" />
+        <Stat label="Posts (7d)" value={s.posts7d} to="/admin/posts" />
+        <Stat label="Open prayers" value={s.prayers_open} to="/admin/prayers" />
+        <Stat label="Upcoming events" value={s.events_upcoming} to="/admin/events" />
       </div>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, to }: { label: string; value: number; to: string }) {
   return (
-    <Card>
-      <p className="text-xs uppercase tracking-wide text-app-muted">{label}</p>
-      <p className="font-sans text-3xl font-semibold text-brand-600 tabular-nums">{value}</p>
-    </Card>
+    <Link to={to} className="block transition hover:-translate-y-0.5">
+      <Card className="relative cursor-pointer hover:shadow-soft-lg">
+        <ArrowUpRight
+          size={14}
+          className="absolute right-3 top-3 text-app-muted opacity-0 transition group-hover:opacity-100"
+        />
+        <p className="text-xs uppercase tracking-wide text-app-muted">{label}</p>
+        <p className="font-sans text-3xl font-semibold text-brand-600 tabular-nums">{value}</p>
+        <p className="mt-1 text-[11px] font-semibold text-brand-600">View →</p>
+      </Card>
+    </Link>
   );
 }

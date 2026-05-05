@@ -36,8 +36,10 @@ export default function AdminLayout() {
       </header>
       {/* Mobile: horizontal scrolling chip bar so admins on phones can
           actually reach every section. */}
-      <nav className="no-scrollbar -mx-3 overflow-x-auto px-3 sm:hidden">
-        <div className="flex w-max gap-2 whitespace-nowrap pb-1">
+      {/* Mobile admin nav: wraps chips onto multiple rows so every section
+          is visible without horizontal swiping. */}
+      <nav className="sm:hidden">
+        <div className="flex flex-wrap gap-2">
           {ADMIN_NAV.map((n) => (
             <NavLink
               key={n.to}
@@ -45,7 +47,7 @@ export default function AdminLayout() {
               end={n.end}
               className={({ isActive }) =>
                 cn(
-                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+                  'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
                   isActive
                     ? 'border-brand-500 bg-brand-500 text-white shadow-soft'
                     : 'border-app text-app-muted hover:bg-surface-raised'
