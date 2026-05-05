@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin, Camera, Sparkles, X } from 'lucide-react';
+import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin, Camera, Sparkles, X, Bell, BellOff } from 'lucide-react';
 import { Card, EmptyState, ScripturePill, SectionTitle } from '../../components/Card';
 import { Input, Textarea } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -428,9 +428,9 @@ function OwnProfileEditor({
           </div>
         </Card>
 
-        {/* Privacy */}
+        {/* Privacy + notifications */}
         <Card>
-          <SectionTitle>Privacy</SectionTitle>
+          <SectionTitle>Privacy &amp; notifications</SectionTitle>
           <label className="flex items-start gap-3 text-sm">
             <input
               type="checkbox"
@@ -446,6 +446,9 @@ function OwnProfileEditor({
               </span>
             </span>
           </label>
+          <div className="mt-4 border-t border-app pt-4">
+            <PushToggle userId={profile.id} />
+          </div>
         </Card>
 
         <div className="flex flex-wrap justify-between gap-2">
@@ -703,6 +706,79 @@ function ChangePasswordForm() {
         Change password
       </Button>
     </form>
+  );
+}
+
+// ─── Push notifications toggle ───────────────────────────────────────
+
+import { enablePush, disablePush, getCurrentPushSubscription, pushSupported } from '../../lib/push';
+
+function PushToggle({ userId }: { userId: string }) {
+  const { addToast } = useToast();
+  const [supported] = useState(() => pushSupported());
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!supported) return;
+    void getCurrentPushSubscription().then((sub) => setEnabled(!!sub));
+  }, [supported]);
+
+  async function turnOn() {
+    setBusy(true);
+    const res = await enablePush(userId);
+    setBusy(false);
+    if (!res.ok) {
+      addToast({ kind: 'error', title: "Couldn't enable push", body: res.reason });
+      return;
+    }
+    setEnabled(true);
+    addToast({
+      kind: 'success',
+      title: 'Push notifications on',
+      body: "You'll get a ping when something needs your attention.",
+    });
+  }
+
+  async function turnOff() {
+    setBusy(true);
+    await disablePush();
+    setBusy(false);
+    setEnabled(false);
+    addToast({ kind: 'info', title: 'Push notifications off' });
+  }
+
+  if (!supported) {
+    return (
+      <p className="text-xs text-app-muted">
+        Push notifications aren't supported on this browser. Try installing the app to your home
+        screen on a phone for the best experience.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 text-brand-500">
+        {enabled ? <Bell size={18} /> : <BellOff size={18} />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">Push notifications</p>
+        <p className="text-xs text-app-muted">
+          Get a phone ping when a sister messages you, replies to your prayer, or a leader posts
+          something for you. You can switch this off any time.
+        </p>
+      </div>
+      {enabled ? (
+        <Button size="sm" variant="ghost" loading={busy} onClick={turnOff}>
+          Turn off
+        </Button>
+      ) : (
+        <Button size="sm" loading={busy} onClick={turnOn}>
+          Turn on
+        </Button>
+      )}
+    </div>
   );
 }
 
