@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin, Camera } from 'lucide-react';
+import { LogOut, MessageCircle, Sun, Moon, KeyRound, Mail, Heart, Cake, MapPin, Camera, Sparkles, X } from 'lucide-react';
 import { Card, EmptyState, ScripturePill, SectionTitle } from '../../components/Card';
 import { Input, Textarea } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -96,6 +96,26 @@ export default function Profile() {
           </div>
         </div>
         {target.about && <p className="mt-4 text-sm leading-7 whitespace-pre-wrap">{target.about}</p>}
+        {target.profession && (
+          <p className="mt-4 text-sm">
+            <span className="font-semibold">What I do:</span> {target.profession}
+          </p>
+        )}
+        {target.skills && target.skills.length > 0 && (
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-app-muted">Skills</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {target.skills.map((s) => (
+                <span
+                  key={s}
+                  className="rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700"
+                >
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {target.favourite_verse && (
           <div className="mt-4">
             <ScripturePill>{target.favourite_verse}</ScripturePill>
@@ -152,6 +172,8 @@ function OwnProfileEditor({
   const [birthday, setBirthday] = useState(profile.birthday ?? '');
   const [birthdayVisible, setBirthdayVisible] = useState<boolean>(profile.birthday_visible ?? false);
   const [anniversary, setAnniversary] = useState(profile.anniversary ?? '');
+  const [profession, setProfession] = useState(profile.profession ?? '');
+  const [skills, setSkills] = useState<string[]>(profile.skills ?? []);
   const [busy, setBusy] = useState(false);
 
   async function save(e: FormEvent) {
@@ -176,6 +198,8 @@ function OwnProfileEditor({
         birthday: birthday || null,
         birthday_visible: birthdayVisible,
         anniversary: anniversary || null,
+        profession: profession.trim() || null,
+        skills,
       })
       .eq('id', profile.id);
     setBusy(false);
@@ -353,6 +377,24 @@ function OwnProfileEditor({
               />
               Show my birthday on the celebrations calendar
             </label>
+          </div>
+        </Card>
+
+        {/* What you bring */}
+        <Card>
+          <SectionTitle>
+            <span className="inline-flex items-center gap-2">
+              <Sparkles size={16} className="text-brand-500" /> What you bring
+            </span>
+          </SectionTitle>
+          <Input
+            label="Profession or what you do"
+            value={profession}
+            onChange={(e) => setProfession(e.target.value)}
+            hint="E.g. teacher, nurse, full-time mum, business owner."
+          />
+          <div className="mt-3">
+            <SkillsPicker value={skills} onChange={setSkills} />
           </div>
         </Card>
 
@@ -611,5 +653,123 @@ function ChangePasswordForm() {
         Change password
       </Button>
     </form>
+  );
+}
+
+// ─── Skills picker ───────────────────────────────────────────────────
+
+/**
+ * Curated list of skills sisters can pick from. Tap to toggle. The "Add
+ * your own" input lets a sister add anything that isn't on the list.
+ *
+ * The columns are stored as text[] in the DB so a future Directory filter
+ * can do a GIN intersection query for "find sisters with skill X".
+ */
+const SKILLS = [
+  'Teaching', 'Counselling', 'Cooking', 'Hospitality', 'Music', 'Prayer',
+  'Mentoring', 'Caregiving', 'Healthcare', 'Finance', 'Legal', 'Tech',
+  'Writing', 'Languages', 'Crafts', 'Childcare', 'Pastoral', 'Admin',
+  'Encouragement', 'Bible study', 'Worship', 'Photography', 'Design',
+  'Event planning',
+];
+
+export function SkillsPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [other, setOther] = useState('');
+  const valueSet = new Set(value);
+
+  function toggle(skill: string) {
+    if (valueSet.has(skill)) {
+      onChange(value.filter((s) => s !== skill));
+    } else {
+      onChange([...value, skill]);
+    }
+  }
+
+  function addOther() {
+    const trimmed = other.trim();
+    if (!trimmed) return;
+    if (valueSet.has(trimmed)) {
+      setOther('');
+      return;
+    }
+    onChange([...value, trimmed]);
+    setOther('');
+  }
+
+  // Custom skills: anything in `value` that's not in the curated list. Show
+  // these as removable chips at the bottom so a sister can edit them later.
+  const custom = value.filter((s) => !SKILLS.includes(s));
+
+  return (
+    <div>
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-app-muted">
+        What you're good at
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {SKILLS.map((s) => {
+          const on = valueSet.has(s);
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-semibold',
+                on
+                  ? 'border-brand-500 bg-brand-500 text-white'
+                  : 'border-app text-app-muted hover:bg-surface-raised'
+              )}
+            >
+              {s}
+            </button>
+          );
+        })}
+      </div>
+
+      {custom.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {custom.map((s) => (
+            <span
+              key={s}
+              className="inline-flex items-center gap-1 rounded-full border border-sage-300 bg-sage-50 px-3 py-1 text-xs font-semibold text-sage-700"
+            >
+              {s}
+              <button
+                type="button"
+                onClick={() => toggle(s)}
+                aria-label={`Remove ${s}`}
+                className="hover:text-red-600"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex items-end gap-2">
+        <Input
+          label="Add your own"
+          value={other}
+          onChange={(e) => setOther(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addOther();
+            }
+          }}
+          hint="Anything not on the list — e.g. nursing, midwifery, accounting."
+        />
+        <Button type="button" variant="ghost" onClick={addOther}>
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -34,6 +34,8 @@ export interface Profile {
   marital_status: MaritalStatus | null;
   husband_name: string | null;
   birthday_visible: boolean;
+  profession: string | null;
+  skills: string[];
   created_at: string;
 }
 
