@@ -5,6 +5,7 @@ import { AuthGate } from './routes/AuthGate';
 import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { InstallPrompt } from './components/InstallPrompt';
+import { PushNavBridge } from './components/PushNavBridge';
 import { LoadingPage } from './components/LoadingPage';
 import { AppShell } from './layout/AppShell';
 
@@ -55,6 +56,7 @@ const AdminEvents = lazy(() => import('./screens/admin/AdminEvents'));
 const AdminDevotionals = lazy(() => import('./screens/admin/AdminDevotionals'));
 const AdminCelebrations = lazy(() => import('./screens/admin/AdminCelebrations'));
 const AdminGallery = lazy(() => import('./screens/admin/AdminGallery'));
+const AdminSisterOfWeek = lazy(() => import('./screens/admin/AdminSisterOfWeek'));
 const AdminMentors = lazy(() => import('./screens/admin/AdminMentors'));
 const AdminFollowUp = lazy(() => import('./screens/admin/AdminFollowUp'));
 const AdminAttendance = lazy(() => import('./screens/admin/AdminAttendance'));
@@ -81,6 +83,7 @@ export default function App() {
         <ToastProvider>
           <AuthProvider>
             <InstallPrompt />
+            <PushNavBridge />
             <AuthGate>
               <Suspense fallback={<LoadingPage />}>
                 <Routes>
@@ -138,6 +141,7 @@ export default function App() {
                       <Route path="elder-qa" element={<AdminElderQuestions />} />
                       <Route path="celebrations" element={<AdminCelebrations />} />
                       <Route path="gallery" element={<AdminGallery />} />
+                      <Route path="sister-of-week" element={<AdminSisterOfWeek />} />
                       <Route path="guide" element={<AdminGuide />} />
                     </Route>
 

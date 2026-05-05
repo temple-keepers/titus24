@@ -3,7 +3,7 @@ import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
 import {
   Users, MessageCircle, HandHeart, Calendar, BookOpen, Library,
   Layers, CalendarHeart, FileText, ClipboardList, Mail, Image as ImageIcon,
-  ChevronDown,
+  ChevronDown, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { isAdmin } from '../../lib/roles';
@@ -33,6 +33,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/follow-up', label: 'Follow-up notes', Icon: FileText },
       { to: '/admin/mentors', label: 'Mentor pairings', Icon: HandHeart },
       { to: '/admin/elder-qa', label: 'Elder Q&A', Icon: HandHeart },
+      { to: '/admin/sister-of-week', label: 'Sister of the Week', Icon: Sparkles },
     ],
   },
   {

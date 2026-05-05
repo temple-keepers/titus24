@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, BookOpen, ArrowRight, MessageCircle, Heart } from 'lucide-react';
+import { Calendar, BookOpen, ArrowRight, MessageCircle, Heart, Sparkles } from 'lucide-react';
 import { Card, ScripturePill, SectionTitle, EmptyState } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { LoadingPage } from '../../components/LoadingPage';
@@ -20,13 +20,18 @@ export default function Home() {
   const [posts, setPosts] = useState<PostWithAuthor[]>([]);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [founder, setFounder] = useState<Profile | null>(null);
+  const [sotw, setSotw] = useState<{
+    profile: Profile;
+    note: string | null;
+    week_starts_on: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const today = todayLocalISO();
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    const [dev, read, ps, evs, founderRes] = await Promise.all([
+    const [dev, read, ps, evs, founderRes, sotwRes] = await Promise.all([
       getTodayDevotional(today),
       hasReadToday(user.id, today),
       listPosts(8),
@@ -37,12 +42,27 @@ export default function Home() {
         .eq('is_founder', true)
         .eq('status', 'active')
         .maybeSingle(),
+      supabase
+        .from('sister_of_the_week')
+        .select(
+          'note, week_starts_on, profile:profiles!sister_of_the_week_profile_id_fkey(*)'
+        )
+        .lte('week_starts_on', today)
+        .order('week_starts_on', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     setDevotional(dev);
     setReadToday(read);
     setPosts(ps);
     setEvents(evs);
     setFounder((founderRes.data as Profile | null) ?? null);
+    const sotwRow = sotwRes.data as {
+      profile: Profile | null;
+      note: string | null;
+      week_starts_on: string;
+    } | null;
+    setSotw(sotwRow && sotwRow.profile ? { profile: sotwRow.profile, note: sotwRow.note, week_starts_on: sotwRow.week_starts_on } : null);
     setLoading(false);
   }, [user, today]);
 
@@ -86,6 +106,33 @@ export default function Home() {
       ) : (
         <Card>
           <p className="text-sm text-app-muted">No devotional posted for today yet, sister. Check back soon.</p>
+        </Card>
+      )}
+
+      {/* Sister of the Week — leadership-curated. */}
+      {sotw && (
+        <Card className="bg-surface-raised">
+          <p className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-600">
+            <Sparkles size={12} /> Sister of the Week
+          </p>
+          <Link to={`/profile/${sotw.profile.id}`} className="mt-2 flex items-start gap-3">
+            <Avatar
+              size={56}
+              url={sotw.profile.avatar_url}
+              name={sotw.profile.display_name ?? sotw.profile.first_name}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-2xl">
+                {sotw.profile.display_name ?? sotw.profile.first_name ?? 'A sister'}
+              </p>
+              {(sotw.profile.city || sotw.profile.country) && (
+                <p className="text-xs text-app-muted">
+                  {[sotw.profile.city, sotw.profile.country].filter(Boolean).join(', ')}
+                </p>
+              )}
+              {sotw.note && <p className="mt-2 text-sm">{sotw.note}</p>}
+            </div>
+          </Link>
         </Card>
       )}
 
