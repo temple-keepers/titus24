@@ -45,6 +45,7 @@ const PrayerPartners = lazy(() => import('./screens/member/PrayerPartners'));
 const MyMentor = lazy(() => import('./screens/member/MyMentor'));
 const Guide = lazy(() => import('./screens/member/Guide'));
 const More = lazy(() => import('./screens/member/More'));
+const Testimonies = lazy(() => import('./screens/member/Testimonies'));
 
 // Lazy: admin tree as its own chunk — small audience, no need to ship to
 // members on first paint. Loading the layout pulls the admin sub-nav with it.
@@ -57,6 +58,9 @@ const AdminDevotionals = lazy(() => import('./screens/admin/AdminDevotionals'));
 const AdminCelebrations = lazy(() => import('./screens/admin/AdminCelebrations'));
 const AdminGallery = lazy(() => import('./screens/admin/AdminGallery'));
 const AdminSisterOfWeek = lazy(() => import('./screens/admin/AdminSisterOfWeek'));
+const AdminTestimonies = lazy(() => import('./screens/admin/AdminTestimonies'));
+const AdminPodMembers = lazy(() => import('./screens/admin/AdminPodMembers'));
+const AdminActivity = lazy(() => import('./screens/admin/AdminActivity'));
 const AdminMentors = lazy(() => import('./screens/admin/AdminMentors'));
 const AdminFollowUp = lazy(() => import('./screens/admin/AdminFollowUp'));
 const AdminAttendance = lazy(() => import('./screens/admin/AdminAttendance'));
@@ -122,6 +126,7 @@ export default function App() {
                     <Route path="guide" element={<Guide />} />
                     <Route path="settings" element={<Profile />} />
                     <Route path="more" element={<More />} />
+                    <Route path="testimonies" element={<Testimonies />} />
 
                     {/* Admin */}
                     <Route path="admin" element={<AdminLayout />}>
@@ -142,6 +147,9 @@ export default function App() {
                       <Route path="celebrations" element={<AdminCelebrations />} />
                       <Route path="gallery" element={<AdminGallery />} />
                       <Route path="sister-of-week" element={<AdminSisterOfWeek />} />
+                      <Route path="testimonies" element={<AdminTestimonies />} />
+                      <Route path="pods/:podId" element={<AdminPodMembers />} />
+                      <Route path="activity" element={<AdminActivity />} />
                       <Route path="guide" element={<AdminGuide />} />
                     </Route>
 

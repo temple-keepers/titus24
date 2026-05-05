@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Calendar, MessageCircle, Image as ImageIcon, Library, Users, Award, HandHeart, HelpCircle, Heart, Settings, Search, Bell, Shield } from 'lucide-react';
+import { BookOpen, Calendar, MessageCircle, Image as ImageIcon, Library, Users, Award, HandHeart, HelpCircle, Heart, Settings, Search, Bell, Shield, Sparkles } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { useAuth } from '../../auth/AuthProvider';
 import { isAdmin } from '../../lib/roles';
@@ -16,6 +16,7 @@ const TILES = [
   { to: '/elders', label: 'Ask Elders', Icon: HandHeart },
   { to: '/mentor', label: 'Mentorship', Icon: HandHeart },
   { to: '/partners', label: 'Prayer Partners', Icon: Heart },
+  { to: '/testimonies', label: 'Testimonies', Icon: Sparkles },
   { to: '/notifications', label: 'Notifications', Icon: Bell },
   { to: '/search', label: 'Search', Icon: Search },
   { to: '/guide', label: 'Guide', Icon: HelpCircle },

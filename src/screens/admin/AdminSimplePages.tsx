@@ -10,6 +10,7 @@
  * `src-legacy/views/AdminDashboard.tsx`.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
@@ -213,7 +214,15 @@ export const AdminPods = makeListPage({
   display: (r) => (
     <>
       <h3 className="font-display text-lg">{String(r.name)}</h3>
-      <p className="text-xs text-app-muted">{String(r.visibility)} · max {String(r.max_members)}</p>
+      <p className="text-xs text-app-muted">
+        {String(r.visibility)} · max {String(r.max_members)}
+      </p>
+      <Link
+        to={`/admin/pods/${String(r.id)}`}
+        className="mt-2 inline-block text-xs font-semibold text-brand-600"
+      >
+        Manage members →
+      </Link>
     </>
   ),
   fields: [

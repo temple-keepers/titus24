@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, Navigate, useLocation, Link } from 'react-router-dom';
 import {
   Users, MessageCircle, HandHeart, Calendar, BookOpen, Library,
   Layers, CalendarHeart, FileText, ClipboardList, Mail, Image as ImageIcon,
-  ChevronDown, Sparkles,
+  ChevronDown, Sparkles, Activity,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { isAdmin } from '../../lib/roles';
@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/posts', label: 'Posts', Icon: MessageCircle },
       { to: '/admin/prayers', label: 'Prayers', Icon: HandHeart },
       { to: '/admin/pods', label: 'Groups', Icon: Users },
+      { to: '/admin/testimonies', label: 'Testimonies', Icon: Sparkles },
       { to: '/admin/celebrations', label: 'Celebrations', Icon: CalendarHeart },
     ],
   },
@@ -71,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const OVERVIEW: NavItem = { to: '/admin', end: true, label: 'Overview', Icon: Layers };
+const ACTIVITY: NavItem = { to: '/admin/activity', label: 'Recent activity', Icon: Activity };
 
 export default function AdminLayout() {
   const { profile } = useAuth();
@@ -87,11 +89,26 @@ export default function AdminLayout() {
           reveal a grouped list of every other section. */}
       <MobileNavDropdown />
 
+      {/* Big "what needs you" CTA — shown above the body on every admin
+          page so leadership has a one-tap path to the activity feed. */}
+      <Link
+        to="/admin/activity"
+        className="block rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 hover:bg-brand-100"
+      >
+        <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-brand-700">
+          <Activity size={14} /> What needs you today
+        </p>
+        <p className="text-xs text-app-muted">
+          Pending questions, submissions, and sisters flagged for support.
+        </p>
+      </Link>
+
       <div className="flex gap-4">
         {/* Desktop: same groups in a left-rail sidebar. */}
         <aside className="hidden w-56 shrink-0 sm:block">
           <nav className="space-y-4">
             <SidebarItem item={OVERVIEW} />
+            <SidebarItem item={ACTIVITY} />
             {NAV_GROUPS.map((g) => (
               <div key={g.label}>
                 <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-app-muted">
@@ -118,9 +135,9 @@ function MobileNavDropdown() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
-  // Find the current section across overview + groups so the trigger button
-  // can show its label and icon.
-  const allItems = [OVERVIEW, ...NAV_GROUPS.flatMap((g) => g.items)];
+  // Find the current section across overview + activity + groups so the
+  // trigger button can show its label and icon.
+  const allItems = [OVERVIEW, ACTIVITY, ...NAV_GROUPS.flatMap((g) => g.items)];
   const current =
     allItems.find((it) =>
       it.end ? location.pathname === it.to : location.pathname.startsWith(it.to)
@@ -162,6 +179,7 @@ function MobileNavDropdown() {
             className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[70vh] overflow-y-auto rounded-2xl border border-app bg-surface p-3 shadow-soft-lg"
           >
             <DropdownItem item={OVERVIEW} />
+            <DropdownItem item={ACTIVITY} />
             {NAV_GROUPS.map((g) => (
               <div key={g.label} className="mt-3">
                 <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-app-muted">
