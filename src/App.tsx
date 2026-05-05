@@ -6,6 +6,7 @@ import { ToastProvider } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { InstallPrompt } from './components/InstallPrompt';
 import { PushNavBridge } from './components/PushNavBridge';
+import { OnboardingTour } from './components/OnboardingTour';
 import { LoadingPage } from './components/LoadingPage';
 import { AppShell } from './layout/AppShell';
 
@@ -88,6 +89,7 @@ export default function App() {
           <AuthProvider>
             <InstallPrompt />
             <PushNavBridge />
+            <OnboardingTour />
             <AuthGate>
               <Suspense fallback={<LoadingPage />}>
                 <Routes>

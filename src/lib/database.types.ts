@@ -42,6 +42,7 @@ export interface Profile {
   quiet_hours_start: number;
   quiet_hours_end: number;
   timezone: string | null;
+  tour_completed_at: string | null;
   created_at: string;
 }
 
