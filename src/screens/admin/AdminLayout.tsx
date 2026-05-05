@@ -36,6 +36,31 @@ export default function AdminLayout() {
           <h1 className="font-display text-3xl">Admin Dashboard</h1>
         </div>
       </header>
+      {/* Mobile: horizontal scrolling chip bar so admins on phones can
+          actually reach every section. */}
+      <nav className="-mx-3 overflow-x-auto px-3 sm:hidden no-scrollbar">
+        <div className="flex gap-2 pb-1">
+          {ADMIN_NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.end}
+              className={({ isActive }) =>
+                cn(
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+                  isActive
+                    ? 'border-brand-500 bg-brand-500 text-white shadow-soft'
+                    : 'border-app text-app-muted hover:bg-surface-raised'
+                )
+              }
+            >
+              <n.Icon size={14} />
+              {n.label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+
       <div className="flex gap-4">
         <aside className="hidden w-56 shrink-0 sm:block">
           <nav className="flex flex-col gap-1">
