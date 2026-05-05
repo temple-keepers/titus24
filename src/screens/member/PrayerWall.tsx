@@ -36,6 +36,25 @@ export default function PrayerWall() {
 
   useEffect(() => {
     refresh();
+    // Live-update prayer counts when sisters tap "I'm praying" or share a
+    // new request. We refetch the list head — listPrayerRequests already
+    // computes response counts and joins authors.
+    const channel = supabase
+      .channel(`prayer-wall:${tab}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prayer_requests' },
+        () => void refresh()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'prayer_responses' },
+        () => void refresh()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 

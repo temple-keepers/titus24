@@ -203,6 +203,16 @@ function OwnProfileEditor({
             {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
           </button>
         </div>
+        <CompletionMeter
+          fields={{
+            avatar: !!avatar,
+            firstName: !!first,
+            cityOrCountry: !!(city || country),
+            about: !!about,
+            verse: !!verse,
+            birthday: !!birthday,
+          }}
+        />
       </Card>
 
       <form onSubmit={save} className="space-y-4">
@@ -378,6 +388,48 @@ function OwnProfileEditor({
           </Button>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ─── Completion meter ────────────────────────────────────────────────
+
+function CompletionMeter({ fields }: { fields: Record<string, boolean> }) {
+  const total = Object.keys(fields).length;
+  const done = Object.values(fields).filter(Boolean).length;
+  const pct = Math.round((done / total) * 100);
+  const labels: Record<string, string> = {
+    avatar: 'Photo',
+    firstName: 'First name',
+    cityOrCountry: 'Where you are',
+    about: 'About you',
+    verse: 'Favourite verse',
+    birthday: 'Birthday',
+  };
+  const missing = Object.entries(fields)
+    .filter(([, v]) => !v)
+    .map(([k]) => labels[k] ?? k);
+
+  return (
+    <div className="mt-4 border-t border-app pt-4">
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="font-semibold text-app-muted">Profile complete</span>
+        <span className="font-bold text-brand-700 tabular-nums">{pct}%</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-surface-raised">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${pct}%`,
+            background: 'linear-gradient(90deg, var(--soft-pink), var(--rose))',
+          }}
+        />
+      </div>
+      {missing.length > 0 && (
+        <p className="mt-2 text-[11px] text-app-muted">
+          Add: <span className="font-semibold">{missing.join(' · ')}</span>
+        </p>
+      )}
     </div>
   );
 }

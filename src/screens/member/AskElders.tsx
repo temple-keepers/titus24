@@ -9,6 +9,10 @@ import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { timeAgo } from '../../lib/dates';
+import { cn } from '../../lib/cn';
+
+const CATEGORIES = ['General', 'Marriage', 'Family', 'Faith', 'Work', 'Other'] as const;
+type Category = (typeof CATEGORIES)[number];
 
 interface Question {
   id: string;
@@ -26,6 +30,7 @@ export default function AskElders() {
   const { addToast } = useToast();
   const [items, setItems] = useState<Question[]>([]);
   const [text, setText] = useState('');
+  const [category, setCategory] = useState<Category>('General');
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -51,11 +56,12 @@ export default function AskElders() {
     setBusy(true);
     const { error } = await supabase
       .from('elder_questions')
-      .insert({ author_id: user.id, question: text.trim(), category: 'General' });
+      .insert({ author_id: user.id, question: text.trim(), category });
     setBusy(false);
     if (failIfError(error, 'send your question', addToast)) return;
     addToast({ kind: 'success', title: 'Sent privately to leadership' });
     setText('');
+    setCategory('General');
     refresh();
   }
 
@@ -67,6 +73,28 @@ export default function AskElders() {
       <p className="text-sm text-app-muted">Your question goes privately to leadership.</p>
       <Card>
         <form onSubmit={ask} className="space-y-3">
+          <div>
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-app-muted">
+              Category
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-semibold',
+                    category === c
+                      ? 'bg-brand-500 text-white border-brand-500'
+                      : 'border-app text-app-muted hover:bg-surface-raised'
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
           <Textarea
             label="Your question"
             value={text}

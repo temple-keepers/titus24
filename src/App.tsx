@@ -74,9 +74,7 @@ const AdminPods = lazy(() =>
 const AdminGuide = lazy(() =>
   import('./screens/admin/AdminSimplePages').then((m) => ({ default: m.AdminGuide }))
 );
-const AdminElderQuestions = lazy(() =>
-  import('./screens/admin/AdminSimplePages').then((m) => ({ default: m.AdminElderQuestions }))
-);
+const AdminElderQuestions = lazy(() => import('./screens/admin/AdminElderQuestions'));
 
 export default function App() {
   return (

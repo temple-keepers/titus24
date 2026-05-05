@@ -42,6 +42,21 @@ export default function Community() {
 
   useEffect(() => {
     refresh();
+    // Live-prepend new posts so the feed feels alive without a pull-to-
+    // refresh. We could trust the payload alone but listPosts hydrates the
+    // author profile + counts, so refetching the head is simpler than
+    // assembling the row client-side.
+    const channel = supabase
+      .channel('posts:feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'posts' },
+        () => void refresh()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, []);
 
   async function onShare(e: FormEvent) {
@@ -117,6 +132,7 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
   const [myReactions, setMyReactions] = useState<Set<ReactionType>>(new Set());
   const [reactionTotals, setReactionTotals] = useState<Record<ReactionType, number>>({} as Record<ReactionType, number>);
   const [commentText, setCommentText] = useState('');
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
 
   async function loadInteractions() {
     const [cs, rs] = await Promise.all([listComments(post.id), listReactions(post.id)]);
@@ -177,12 +193,13 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
     if (!user || !commentText.trim()) return;
     const { error } = await supabase.from('comments').insert({
       post_id: post.id,
-      parent_id: null,
+      parent_id: replyTo?.id ?? null,
       author_id: user.id,
       content: commentText.trim(),
     });
     if (failIfError(error, 'add your comment', addToast)) return;
     setCommentText('');
+    setReplyTo(null);
     loadInteractions();
   }
 
@@ -239,20 +256,31 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
       </div>
       {showComments && (
         <div className="mt-3 border-t border-app pt-3 space-y-3">
-          {comments.map((c) => (
-            <div key={c.id} className="flex items-start gap-2">
-              <Avatar size={28} url={c.author?.avatar_url ?? null} name={c.author?.display_name ?? c.author?.first_name ?? 'Sister'} />
-              <div className="flex-1 rounded-2xl bg-surface-raised px-3 py-2">
-                <div className="text-xs font-semibold">{c.author?.display_name ?? c.author?.first_name ?? 'Sister'}</div>
-                <div className="text-sm">{c.content}</div>
-                <div className="text-[10px] text-app-muted mt-1">{timeAgo(c.created_at)}</div>
-              </div>
+          <CommentThread
+            comments={comments}
+            onReply={(c) =>
+              setReplyTo({
+                id: c.id,
+                name: c.author?.display_name ?? c.author?.first_name ?? 'Sister',
+              })
+            }
+          />
+          {replyTo && (
+            <div className="flex items-center justify-between rounded-2xl bg-brand-50 px-3 py-2 text-xs text-brand-700">
+              <span>Replying to {replyTo.name}</span>
+              <button
+                type="button"
+                onClick={() => setReplyTo(null)}
+                className="font-semibold hover:underline"
+              >
+                Cancel
+              </button>
             </div>
-          ))}
+          )}
           <form onSubmit={addComment} className="flex items-center gap-2">
             <Input
               name="comment"
-              placeholder="Encourage your sister…"
+              placeholder={replyTo ? `Reply to ${replyTo.name}…` : 'Encourage your sister…'}
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
             />
@@ -261,5 +289,88 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
         </div>
       )}
     </Card>
+  );
+}
+
+// ─── Comment thread ──────────────────────────────────────────────────
+
+type CommentRow = Comment & { author: PostWithAuthor['author'] };
+
+function CommentThread({
+  comments,
+  onReply,
+}: {
+  comments: CommentRow[];
+  onReply: (c: CommentRow) => void;
+}) {
+  // Build a one-level tree: top-level comments with their replies grouped.
+  const tops = comments.filter((c) => !c.parent_id);
+  const repliesByParent = new Map<string, CommentRow[]>();
+  comments.forEach((c) => {
+    if (c.parent_id) {
+      const arr = repliesByParent.get(c.parent_id) ?? [];
+      arr.push(c);
+      repliesByParent.set(c.parent_id, arr);
+    }
+  });
+
+  if (tops.length === 0) {
+    return <p className="text-xs text-app-muted">No comments yet. Be the first to encourage her.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {tops.map((c) => {
+        const replies = repliesByParent.get(c.id) ?? [];
+        return (
+          <div key={c.id} className="space-y-2">
+            <CommentBubble comment={c} onReply={() => onReply(c)} />
+            {replies.length > 0 && (
+              <div className="ml-9 space-y-2 border-l-2 border-brand-100 pl-3">
+                {replies.map((r) => (
+                  <CommentBubble key={r.id} comment={r} onReply={() => onReply(c)} compact />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CommentBubble({
+  comment,
+  onReply,
+  compact,
+}: {
+  comment: CommentRow;
+  onReply: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar
+        size={compact ? 24 : 28}
+        url={comment.author?.avatar_url ?? null}
+        name={comment.author?.display_name ?? comment.author?.first_name ?? 'Sister'}
+      />
+      <div className="flex-1 rounded-2xl bg-surface-raised px-3 py-2">
+        <div className="text-xs font-semibold">
+          {comment.author?.display_name ?? comment.author?.first_name ?? 'Sister'}
+        </div>
+        <div className="text-sm">{comment.content}</div>
+        <div className="mt-1 flex items-center gap-3 text-[10px] text-app-muted">
+          <span>{timeAgo(comment.created_at)}</span>
+          <button
+            type="button"
+            onClick={onReply}
+            className="font-semibold hover:text-brand-600"
+          >
+            Reply
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
