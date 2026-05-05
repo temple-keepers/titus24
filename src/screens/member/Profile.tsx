@@ -415,9 +415,12 @@ function AvatarUpload({
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const path = `${userId}/${Date.now()}.${ext}`;
 
+    // Path is timestamped, so uniqueness is guaranteed — upsert:false avoids
+    // the storage UPDATE policy check (which requires owner=auth.uid() and
+    // 400s on a brand-new INSERT under PostgREST upsert semantics).
     const { error: upErr } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
 
     if (upErr) {
       setBusy(false);
