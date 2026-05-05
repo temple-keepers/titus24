@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Library, CheckCircle2, XCircle, Clock, ExternalLink } from 'lucide-react';
+import { Library, CheckCircle2, XCircle, Clock, ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
@@ -119,6 +119,23 @@ export default function AdminResources() {
     void refresh();
   }
 
+  const [checking, setChecking] = useState(false);
+
+  async function checkLinks() {
+    setChecking(true);
+    const { data, error } = await supabase.functions.invoke('check-resource-links', {
+      body: {},
+    });
+    setChecking(false);
+    if (error) {
+      addToast({ kind: 'error', title: 'Link check failed', body: error.message });
+      return;
+    }
+    const checked = (data as { checked?: number } | null)?.checked ?? 0;
+    addToast({ kind: 'success', title: `Checked ${checked} links` });
+    void refresh();
+  }
+
   if (loading) return <LoadingPage />;
 
   const pending = rows.filter((r) => !r.is_published);
@@ -173,30 +190,41 @@ export default function AdminResources() {
         </form>
       </Card>
 
-      <div className="flex gap-2 rounded-2xl bg-surface-raised p-1 text-sm font-semibold">
-        <button
-          onClick={() => setTab('pending')}
-          className={cn(
-            'flex-1 rounded-xl px-3 py-2 inline-flex items-center justify-center gap-2',
-            tab === 'pending' ? 'bg-surface text-app shadow-soft' : 'text-app-muted'
-          )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-1 gap-2 rounded-2xl bg-surface-raised p-1 text-sm font-semibold">
+          <button
+            onClick={() => setTab('pending')}
+            className={cn(
+              'inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2',
+              tab === 'pending' ? 'bg-surface text-app shadow-soft' : 'text-app-muted'
+            )}
+          >
+            <Clock size={14} /> Pending
+            {pending.length > 0 && (
+              <span className="rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-white">
+                {pending.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab('live')}
+            className={cn(
+              'flex-1 rounded-xl px-3 py-2',
+              tab === 'live' ? 'bg-surface text-app shadow-soft' : 'text-app-muted'
+            )}
+          >
+            Live ({live.length})
+          </button>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={checking}
+          leadingIcon={checking ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+          onClick={() => void checkLinks()}
         >
-          <Clock size={14} /> Pending review
-          {pending.length > 0 && (
-            <span className="rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-white">
-              {pending.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab('live')}
-          className={cn(
-            'flex-1 rounded-xl px-3 py-2',
-            tab === 'live' ? 'bg-surface text-app shadow-soft' : 'text-app-muted'
-          )}
-        >
-          Live ({live.length})
-        </button>
+          Check links
+        </Button>
       </div>
 
       {list.length === 0 ? (
@@ -221,7 +249,10 @@ export default function AdminResources() {
                 />
               ) : null}
               <div className="min-w-0 flex-1">
-                <h3 className="font-display text-lg">{r.title}</h3>
+                <div className="flex items-center gap-2">
+                  <LinkStatusDot status={r.link_status} httpStatus={r.link_http_status} />
+                  <h3 className="font-display text-lg">{r.title}</h3>
+                </div>
                 <p className="text-xs text-app-muted">
                   {r.category}
                   {r.submitter && ` · suggested by ${r.submitter.display_name ?? r.submitter.first_name ?? 'a sister'} · ${timeAgo(r.created_at)}`}
@@ -237,6 +268,12 @@ export default function AdminResources() {
                 >
                   <ExternalLink size={12} /> {r.url}
                 </a>
+                {r.link_checked_at && (
+                  <p className="mt-1 text-[10px] text-app-muted">
+                    Last checked {timeAgo(r.link_checked_at)}
+                    {r.link_http_status ? ` · HTTP ${r.link_http_status}` : ''}
+                  </p>
+                )}
               </div>
             </div>
             <div className="mt-3 flex flex-wrap justify-end gap-2">
@@ -281,3 +318,36 @@ export default function AdminResources() {
     </div>
   );
 }
+
+function LinkStatusDot({
+  status,
+  httpStatus,
+}: {
+  status: Resource['link_status'];
+  httpStatus: number | null;
+}) {
+  if (!status) {
+    return (
+      <span
+        title="Link not checked yet"
+        className="inline-block h-2.5 w-2.5 rounded-full bg-app-muted/30"
+      />
+    );
+  }
+  const map: Record<NonNullable<Resource['link_status']>, { color: string; label: string }> = {
+    ok: { color: '#5E8C5E', label: 'Working' },
+    redirect: { color: '#C9A45A', label: 'Redirects' },
+    broken: { color: '#D44D73', label: 'Broken' },
+    timeout: { color: '#D44D73', label: 'Timed out' },
+    unknown: { color: '#8B6F75', label: 'Unknown' },
+  };
+  const info = map[status];
+  return (
+    <span
+      title={`${info.label}${httpStatus ? ` · HTTP ${httpStatus}` : ''}`}
+      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+      style={{ background: info.color }}
+    />
+  );
+}
+

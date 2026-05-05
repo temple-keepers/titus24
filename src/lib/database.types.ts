@@ -229,6 +229,9 @@ export interface Resource {
   submitted_by: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  link_status: 'ok' | 'redirect' | 'broken' | 'timeout' | 'unknown' | null;
+  link_http_status: number | null;
+  link_checked_at: string | null;
   created_at: string;
 }
 
