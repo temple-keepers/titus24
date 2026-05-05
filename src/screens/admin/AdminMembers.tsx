@@ -64,10 +64,15 @@ export default function AdminMembers() {
           <Card key={m.id}>
             <div className="flex items-center gap-3">
               <Avatar size={40} url={m.avatar_url} name={m.display_name ?? m.first_name} />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate">{m.display_name ?? m.first_name ?? m.email}</div>
-                <div className="text-[11px] text-app-muted truncate">{m.email} · {m.city ?? m.country}</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{m.display_name ?? m.first_name ?? m.email}</div>
+                <div className="truncate text-[11px] text-app-muted">
+                  {m.email}
+                  {(m.city || m.country) && ` · ${m.city ?? m.country}`}
+                </div>
               </div>
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2 border-t border-app pt-3">
               <select
                 value={m.role}
                 onChange={(e) => setRole(m, e.target.value as Role)}
