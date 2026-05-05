@@ -13,6 +13,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
+import { ImageUpload } from '../../components/ImageUpload';
 import { LoadingPage } from '../../components/LoadingPage';
 import { useAuth } from '../../auth/AuthProvider';
 import { useToast } from '../../components/ToastProvider';
@@ -24,8 +25,10 @@ type Row = { id: string; created_at?: string; [k: string]: unknown };
 interface Field {
   key: string;
   label: string;
-  type?: 'text' | 'date' | 'textarea' | 'url' | 'number';
+  type?: 'text' | 'date' | 'textarea' | 'url' | 'number' | 'image';
   required?: boolean;
+  /** Storage bucket — required when type === 'image'. */
+  bucket?: 'gallery' | 'post-images' | 'avatars';
 }
 
 function makeListPage(opts: {
@@ -94,16 +97,36 @@ function makeListPage(opts: {
           <Card>
             <SectionTitle>New {opts.title.toLowerCase()}</SectionTitle>
             <form onSubmit={create} className="space-y-3">
-              {opts.fields.map((f) =>
-                f.type === 'textarea' ? (
-                  <Textarea
-                    key={f.key}
-                    label={f.label}
-                    required={f.required}
-                    value={form[f.key] ?? ''}
-                    onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
-                  />
-                ) : (
+              {opts.fields.map((f) => {
+                if (f.type === 'textarea') {
+                  return (
+                    <Textarea
+                      key={f.key}
+                      label={f.label}
+                      required={f.required}
+                      value={form[f.key] ?? ''}
+                      onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                    />
+                  );
+                }
+                if (f.type === 'image' && f.bucket && user) {
+                  return (
+                    <div key={f.key}>
+                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-app-muted">
+                        {f.label}
+                      </span>
+                      <ImageUpload
+                        bucket={f.bucket}
+                        userId={user.id}
+                        value={form[f.key] ?? ''}
+                        onChange={(url) => setForm({ ...form, [f.key]: url })}
+                        buttonLabel={`Upload ${f.label.toLowerCase()}`}
+                        label="JPG or PNG, up to 5 MB."
+                      />
+                    </div>
+                  );
+                }
+                return (
                   <Input
                     key={f.key}
                     label={f.label}
@@ -112,8 +135,8 @@ function makeListPage(opts: {
                     value={form[f.key] ?? ''}
                     onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
                   />
-                )
-              )}
+                );
+              })}
               <Button type="submit" loading={busy}>Save</Button>
             </form>
           </Card>
@@ -163,7 +186,7 @@ export const AdminResources = makeListPage({
     { key: 'category', label: 'Category', required: true },
     { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'url', label: 'URL', type: 'url', required: true },
-    { key: 'cover_url', label: 'Cover image URL', type: 'url' },
+    { key: 'cover_url', label: 'Cover image', type: 'image', bucket: 'gallery' },
   ],
 });
 
@@ -180,7 +203,7 @@ export const AdminStudies = makeListPage({
     { key: 'title', label: 'Title', required: true },
     { key: 'description', label: 'Description', type: 'textarea' },
     { key: 'duration_days', label: 'Days', type: 'number', required: true },
-    { key: 'cover_url', label: 'Cover URL', type: 'url' },
+    { key: 'cover_url', label: 'Cover image', type: 'image', bucket: 'gallery' },
   ],
 });
 

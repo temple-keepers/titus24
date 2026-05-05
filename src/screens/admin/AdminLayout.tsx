@@ -1,5 +1,5 @@
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
-import { Users, MessageCircle, HandHeart, Calendar, BookOpen, Library, Layers, CalendarHeart, FileText, ClipboardList, Mail } from 'lucide-react';
+import { Users, MessageCircle, HandHeart, Calendar, BookOpen, Library, Layers, CalendarHeart, FileText, ClipboardList, Mail, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { isAdmin } from '../../lib/roles';
 import { cn } from '../../lib/cn';
@@ -20,6 +20,7 @@ const ADMIN_NAV = [
   { to: '/admin/elder-qa', label: 'Elder Q&A', Icon: HandHeart },
   { to: '/admin/email', label: 'Email broadcast', Icon: Mail },
   { to: '/admin/celebrations', label: 'Celebrations', Icon: CalendarHeart },
+  { to: '/admin/gallery', label: 'Gallery', Icon: ImageIcon },
   { to: '/admin/guide', label: 'Guide', Icon: FileText },
 ];
 

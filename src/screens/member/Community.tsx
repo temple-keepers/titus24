@@ -133,6 +133,24 @@ function PostCard({ post, onRefresh, canPin }: { post: PostWithAuthor; onRefresh
 
   useEffect(() => {
     loadInteractions();
+    // Subscribe to live reactions + comments on this post so a sister sees
+    // others react and reply without a page refresh.
+    const channel = supabase
+      .channel(`post:${post.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reactions', filter: `post_id=eq.${post.id}` },
+        () => void loadInteractions()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'comments', filter: `post_id=eq.${post.id}` },
+        () => void loadInteractions()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id]);
 

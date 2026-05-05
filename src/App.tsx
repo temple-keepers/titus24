@@ -54,6 +54,7 @@ const AdminPosts = lazy(() => import('./screens/admin/AdminPosts'));
 const AdminEvents = lazy(() => import('./screens/admin/AdminEvents'));
 const AdminDevotionals = lazy(() => import('./screens/admin/AdminDevotionals'));
 const AdminCelebrations = lazy(() => import('./screens/admin/AdminCelebrations'));
+const AdminGallery = lazy(() => import('./screens/admin/AdminGallery'));
 const AdminMentors = lazy(() => import('./screens/admin/AdminMentors'));
 const AdminFollowUp = lazy(() => import('./screens/admin/AdminFollowUp'));
 const AdminAttendance = lazy(() => import('./screens/admin/AdminAttendance'));
@@ -140,6 +141,7 @@ export default function App() {
                       <Route path="mentors" element={<AdminMentors />} />
                       <Route path="elder-qa" element={<AdminElderQuestions />} />
                       <Route path="celebrations" element={<AdminCelebrations />} />
+                      <Route path="gallery" element={<AdminGallery />} />
                       <Route path="guide" element={<AdminGuide />} />
                     </Route>
 
