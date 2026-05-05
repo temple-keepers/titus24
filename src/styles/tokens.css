@@ -32,6 +32,11 @@
 
 html, body, #root {
   height: 100%;
+  /* Hard cap content width to the viewport so a misbehaving wide child
+     can never trigger horizontal scroll on phones. overflow-x: hidden
+     is more universally supported than overflow-x: clip. */
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
@@ -39,6 +44,12 @@ body {
   color: var(--text);
   font-family: 'Nunito', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Long unbroken strings (URLs, emails, single-word display names) shouldn't
+   push their containers wider than the viewport. */
+p, h1, h2, h3, h4, h5, h6, span, a, button, label, li {
+  overflow-wrap: anywhere;
 }
 
 h1, h2, h3, h4, h5, h6, .font-display {
