@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '../../components/Input';
@@ -6,12 +6,19 @@ import { Button } from '../../components/Button';
 import { supabase } from '../../lib/supabase';
 import { mapAuthError } from '../../lib/errors';
 
+const MIN_DWELL_MS = 2500; // bots usually submit instantly
+
 export default function SignUp() {
   const [firstName, setFirstName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agree, setAgree] = useState(false);
+  // Honeypot: invisible to humans (label hidden, tab-index stripped). If
+  // it's non-empty when the form submits, a bot filled it — silently
+  // pretend to send and bail.
+  const [hp, setHp] = useState('');
+  const mountedAt = useRef(Date.now());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -19,6 +26,18 @@ export default function SignUp() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Bot guards. Both fail silently on the success path so a bot can't
+    // distinguish a rejection from a real send.
+    if (hp.trim()) {
+      setSent(true);
+      return;
+    }
+    if (Date.now() - mountedAt.current < MIN_DWELL_MS) {
+      setSent(true);
+      return;
+    }
+
     if (password.length < 8) {
       setError('Password must be at least 8 characters.');
       return;
@@ -80,6 +99,31 @@ export default function SignUp() {
       }
     >
       <form className="space-y-4" onSubmit={onSubmit}>
+        {/* Honeypot — hidden from humans (offscreen + aria-hidden + tab-
+            index out). Browsers' password managers may still try to fill
+            it, but most won't because of autocomplete='off'. */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: '-10000px',
+            top: 'auto',
+            width: 1,
+            height: 1,
+            overflow: 'hidden',
+          }}
+        >
+          <label>
+            Don't fill this if you're human
+            <input
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={hp}
+              onChange={(e) => setHp(e.target.value)}
+            />
+          </label>
+        </div>
         <Input
           label="First name"
           name="first_name"

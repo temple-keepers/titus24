@@ -31,6 +31,37 @@ export function MessagesIndex() {
 
   useEffect(() => {
     refresh();
+    if (!user) return;
+    // Live-update conversation list whenever a message involving this
+    // sister lands or her own send goes through. Refetching the whole
+    // list is cheap (max ~20 convos) and lets listConversations re-rank
+    // by latest message + recompute unread counts.
+    const channel = supabase
+      .channel(`conversations:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => void refresh()
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${user.id}`,
+        },
+        () => void refresh()
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 

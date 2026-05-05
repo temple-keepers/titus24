@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Library, ExternalLink, Plus, Clock } from 'lucide-react';
+import { Library, ExternalLink, Plus, Clock, Play } from 'lucide-react';
 import { Card, EmptyState, SectionTitle } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input, Textarea } from '../../components/Input';
@@ -9,6 +9,7 @@ import { useToast } from '../../components/ToastProvider';
 import { failIfError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { listResources } from '../../data/queries';
+import { getEmbedUrl } from '../../lib/videos';
 import type { Resource } from '../../lib/database.types';
 
 export default function Resources() {
@@ -200,23 +201,96 @@ export default function Resources() {
         grouped.map(([cat, list]) => (
           <section key={cat}>
             <SectionTitle>{cat}</SectionTitle>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {list.map((r) => (
-                <Card key={r.id}>
-                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3">
-                    {r.cover_url && <img src={r.cover_url} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover" />}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-display text-lg">{r.title}</h3>
-                      {r.description && <p className="text-sm text-app-muted">{r.description}</p>}
-                    </div>
-                    <ExternalLink size={16} className="shrink-0 text-app-muted" />
-                  </a>
-                </Card>
+                <ResourceCard key={r.id} resource={r} />
               ))}
             </div>
           </section>
         ))
       )}
     </div>
+  );
+}
+
+/**
+ * Single resource row. If the URL is a YouTube/Vimeo link, render a
+ * click-to-play preview that lazy-mounts the iframe on tap (no third-
+ * party load until the sister actually wants to watch). Otherwise fall
+ * back to a regular external-link card.
+ */
+function ResourceCard({ resource: r }: { resource: Resource }) {
+  const embed = getEmbedUrl(r.url);
+  const [playing, setPlaying] = useState(false);
+
+  if (embed) {
+    return (
+      <Card>
+        {playing ? (
+          <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
+            <iframe
+              src={`${embed.src}?autoplay=1&rel=0`}
+              title={r.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="h-full w-full"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPlaying(true)}
+            className="group relative block aspect-video w-full overflow-hidden rounded-2xl bg-surface-raised"
+            aria-label={`Play ${r.title}`}
+          >
+            {(embed.thumbnail || r.cover_url) ? (
+              <img
+                src={embed.thumbnail ?? r.cover_url ?? ''}
+                alt=""
+                className="h-full w-full object-cover transition group-hover:scale-105"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-brand-300">
+                <Play size={48} />
+              </div>
+            )}
+            <span
+              className="absolute inset-0 flex items-center justify-center bg-black/30"
+              aria-hidden
+            >
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white text-brand-700 shadow-soft">
+                <Play size={24} fill="currentColor" />
+              </span>
+            </span>
+          </button>
+        )}
+        <div className="mt-3">
+          <h3 className="font-display text-lg">{r.title}</h3>
+          {r.description && <p className="mt-1 text-sm text-app-muted">{r.description}</p>}
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-brand-600"
+          >
+            <ExternalLink size={12} /> Open on {embed.provider === 'youtube' ? 'YouTube' : 'Vimeo'}
+          </a>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3">
+        {r.cover_url && <img src={r.cover_url} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover" />}
+        <div className="min-w-0 flex-1">
+          <h3 className="font-display text-lg">{r.title}</h3>
+          {r.description && <p className="text-sm text-app-muted">{r.description}</p>}
+        </div>
+        <ExternalLink size={16} className="shrink-0 text-app-muted" />
+      </a>
+    </Card>
   );
 }
