@@ -1,8 +1,9 @@
-import { useEffect, type ReactNode } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState, type ReactNode } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Home, Heart, MessageCircle, Users, Calendar, Bell, Search, BookOpen, Settings, Image as ImageIcon, Library, Shield, Award, HelpCircle, HandHeart } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { Avatar } from '../components/Avatar';
+import { supabase } from '../lib/supabase';
 import { isLeadership, isAdmin } from '../lib/roles';
 import { cn } from '../lib/cn';
 
@@ -85,6 +86,7 @@ export function AppShell() {
 
 function TopBar() {
   const { profile } = useAuth();
+  const unread = useUnreadNotificationCount();
   return (
     <header className="sticky top-0 z-30 border-b border-app bg-surface/80 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2 sm:px-6">
@@ -99,7 +101,19 @@ function TopBar() {
         </NavLink>
         <div className="flex items-center gap-1">
           <IconLink to="/search" label="Search"><Search size={20} /></IconLink>
-          <IconLink to="/notifications" label="Notifications"><Bell size={20} /></IconLink>
+          <IconLink to="/notifications" label="Notifications">
+            <span className="relative inline-flex">
+              <Bell size={20} />
+              {unread > 0 && (
+                <span
+                  aria-label={`${unread} unread`}
+                  className="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold leading-none text-white"
+                >
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
+            </span>
+          </IconLink>
           <NavLink to="/profile" aria-label="Profile">
             <Avatar size={32} url={profile?.avatar_url} name={profile?.display_name ?? profile?.first_name} />
           </NavLink>
@@ -107,6 +121,62 @@ function TopBar() {
       </div>
     </header>
   );
+}
+
+function useUnreadNotificationCount(): number {
+  const { user } = useAuth();
+  const location = useLocation();
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      setCount(0);
+      return;
+    }
+    let active = true;
+    async function refresh() {
+      const { count: c } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user!.id)
+        .eq('is_read', false);
+      if (active) setCount(c ?? 0);
+    }
+    void refresh();
+
+    const channel = supabase
+      .channel(`unread-notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => void refresh()
+      )
+      .subscribe();
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  // Also re-poll whenever the user navigates — e.g. away from /notifications
+  // after marking some read — so the badge stays in sync if a write happened
+  // outside the channel's filter window.
+  useEffect(() => {
+    if (!user) return;
+    void supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('is_read', false)
+      .then(({ count: c }) => setCount(c ?? 0));
+  }, [user, location.pathname]);
+
+  return count;
 }
 
 function IconLink({ to, label, children }: { to: string; label: string; children: ReactNode }) {

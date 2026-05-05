@@ -27,6 +27,27 @@ export default function Notifications() {
 
   useEffect(() => {
     refresh();
+    if (!user) return;
+    // Live-prepend any new notification rows for this user without a reload.
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const next = payload.new as Notification;
+          setItems((prev) => [next, ...prev]);
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 

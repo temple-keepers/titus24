@@ -4,6 +4,7 @@ import { Card, EmptyState } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Textarea, Input } from '../../components/Input';
 import { Avatar } from '../../components/Avatar';
+import { ImageUpload } from '../../components/ImageUpload';
 import { LoadingPage } from '../../components/LoadingPage';
 import { PullToRefresh } from '../../components/PullToRefresh';
 import { useAuth } from '../../auth/AuthProvider';
@@ -79,19 +80,17 @@ export default function Community() {
               required
             />
           </div>
-          {imageUrl && (
-            <div className="rounded-2xl overflow-hidden border border-app">
-              <img src={imageUrl} alt="" className="w-full h-48 object-cover" />
-            </div>
-          )}
-          <div className="flex items-end justify-between gap-3">
-            <Input
-              name="image"
-              placeholder="Image URL (optional)"
+          {user && (
+            <ImageUpload
+              bucket="post-images"
+              userId={user.id}
               value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              className="text-xs"
+              onChange={setImageUrl}
+              buttonLabel="Add a photo"
+              label="Optional. Up to 5 MB."
             />
+          )}
+          <div className="flex justify-end">
             <Button type="submit" loading={busy} leadingIcon={<Send size={16} />}>
               Share
             </Button>
