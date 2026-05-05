@@ -38,6 +38,10 @@ export interface Profile {
   read_receipts_enabled: boolean;
   is_founder: boolean;
   notify_prefs: Partial<Record<NotificationType, boolean>>;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: number;
+  quiet_hours_end: number;
+  timezone: string | null;
   created_at: string;
 }
 

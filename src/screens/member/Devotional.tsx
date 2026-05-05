@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { Card, ScripturePill, TipCard, EmptyState } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { LoadingPage } from '../../components/LoadingPage';
@@ -59,9 +60,12 @@ export default function Devotional() {
 
   return (
     <article className="mx-auto max-w-2xl space-y-4">
-      <header>
-        <p className="text-xs uppercase tracking-wide text-brand-600">{relativeDayLabel(today)} · Devotional</p>
-        <h1 className="font-display text-3xl mt-1">{devotional.theme}</h1>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-wide text-brand-600">{relativeDayLabel(today)} · Devotional</p>
+          <h1 className="font-display text-3xl mt-1">{devotional.theme}</h1>
+        </div>
+        <ReadAloudButton devotional={devotional} />
       </header>
       <ScripturePill reference={devotional.scripture_ref}>{devotional.scripture_text}</ScripturePill>
       <Card>
@@ -97,5 +101,84 @@ export default function Devotional() {
         )}
       </div>
     </article>
+  );
+}
+
+/**
+ * Browser SpeechSynthesis read-aloud button. Reads theme → scripture →
+ * reflection → affirmation → prayer in sequence so a sister can listen
+ * while driving, cooking, or feeding a baby. Stops cleanly when the
+ * component unmounts so a navigation away doesn't leave the voice
+ * trailing.
+ */
+function ReadAloudButton({ devotional }: { devotional: DailyDevotional }) {
+  const [supported] = useState(
+    () => typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window
+  );
+  const [speaking, setSpeaking] = useState(false);
+  const utterancesRef = useRef<SpeechSynthesisUtterance[]>([]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  if (!supported) return null;
+
+  function start() {
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const lines: string[] = [
+      devotional.theme,
+      `Today's reading is from ${devotional.scripture_ref}.`,
+      devotional.scripture_text,
+      'Reflection.',
+      devotional.reflection,
+      'Affirmation.',
+      devotional.affirmation,
+      'And a prayer.',
+      devotional.prayer,
+    ].filter(Boolean) as string[];
+
+    // Pick a softer female voice if the OS has one available.
+    const voices = synth.getVoices();
+    const preferred =
+      voices.find((v) => /female|samantha|karen|victoria|tessa|joanna/i.test(v.name)) ??
+      voices.find((v) => v.lang.startsWith('en')) ??
+      null;
+
+    const utterances = lines.map((line, i) => {
+      const u = new SpeechSynthesisUtterance(line);
+      if (preferred) u.voice = preferred;
+      u.rate = 0.95;
+      u.pitch = 1.0;
+      if (i === lines.length - 1) {
+        u.onend = () => setSpeaking(false);
+      }
+      return u;
+    });
+
+    utterancesRef.current = utterances;
+    setSpeaking(true);
+    utterances.forEach((u) => synth.speak(u));
+  }
+
+  function stop() {
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={speaking ? stop : start}
+      aria-label={speaking ? 'Stop reading aloud' : 'Read aloud'}
+      className="shrink-0 rounded-full border border-app bg-surface p-2 text-brand-600 hover:bg-surface-raised"
+    >
+      {speaking ? <VolumeX size={18} /> : <Volume2 size={18} />}
+    </button>
   );
 }

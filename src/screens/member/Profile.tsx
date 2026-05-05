@@ -178,6 +178,9 @@ function OwnProfileEditor({
   const [notifyPrefs, setNotifyPrefs] = useState<Record<string, boolean>>(
     (profile.notify_prefs as Record<string, boolean> | undefined) ?? {}
   );
+  const [quietEnabled, setQuietEnabled] = useState<boolean>(profile.quiet_hours_enabled ?? false);
+  const [quietStart, setQuietStart] = useState<number>(profile.quiet_hours_start ?? 22);
+  const [quietEnd, setQuietEnd] = useState<number>(profile.quiet_hours_end ?? 7);
   const [busy, setBusy] = useState(false);
 
   // Phone number lives on contact_info (leader-only RLS), so we hydrate
@@ -223,6 +226,9 @@ function OwnProfileEditor({
         skills,
         read_receipts_enabled: readReceipts,
         notify_prefs: notifyPrefs,
+        quiet_hours_enabled: quietEnabled,
+        quiet_hours_start: quietStart,
+        quiet_hours_end: quietEnd,
       })
       .eq('id', profile.id);
 
@@ -456,6 +462,16 @@ function OwnProfileEditor({
           <div className="mt-4 border-t border-app pt-4">
             <NotifyPrefs value={notifyPrefs} onChange={setNotifyPrefs} />
           </div>
+          <div className="mt-4 border-t border-app pt-4">
+            <QuietHoursPicker
+              enabled={quietEnabled}
+              start={quietStart}
+              end={quietEnd}
+              onEnabledChange={setQuietEnabled}
+              onStartChange={setQuietStart}
+              onEndChange={setQuietEnd}
+            />
+          </div>
         </Card>
 
         <div className="flex flex-wrap justify-between gap-2">
@@ -464,6 +480,9 @@ function OwnProfileEditor({
           </Button>
         </div>
       </form>
+
+      {/* Points ledger */}
+      <PointsLedger userId={profile.id} />
 
       {/* Account & security */}
       <Card>
@@ -830,6 +849,100 @@ function PushToggle({ userId }: { userId: string }) {
   );
 }
 
+// ─── Points ledger ───────────────────────────────────────────────────
+
+interface PointEntry {
+  id: string;
+  action: string;
+  points: number;
+  description: string | null;
+  created_at: string;
+}
+
+function PointsLedger({ userId }: { userId: string }) {
+  const [entries, setEntries] = useState<PointEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from('points')
+      .select('id, action, points, description, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (!active) return;
+        const rows = (data as PointEntry[] | null) ?? [];
+        setEntries(rows);
+        setTotal(rows.reduce((sum, r) => sum + r.points, 0));
+        setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  if (loading) return null;
+
+  const visible = showAll ? entries : entries.slice(0, 8);
+
+  return (
+    <Card>
+      <SectionTitle>
+        <span className="inline-flex items-center gap-2">
+          Points <span className="font-sans tabular-nums text-brand-700">({total})</span>
+        </span>
+      </SectionTitle>
+      {entries.length === 0 ? (
+        <p className="text-sm text-app-muted">
+          You'll see points here as you read devotionals, share, pray with sisters, and check in.
+        </p>
+      ) : (
+        <>
+          <ul className="divide-y divide-app">
+            {visible.map((e) => (
+              <li key={e.id} className="flex items-center gap-3 py-2 text-sm">
+                <span className="inline-flex h-7 min-w-[2.25rem] items-center justify-center rounded-full bg-brand-100 px-2 font-bold tabular-nums text-brand-700">
+                  +{e.points}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">{e.description ?? prettyAction(e.action)}</p>
+                  <p className="text-[11px] text-app-muted">{new Date(e.created_at).toLocaleString()}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {entries.length > 8 && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 text-xs font-semibold text-brand-600"
+            >
+              {showAll ? 'Show fewer' : `Show all ${entries.length}`}
+            </button>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function prettyAction(action: string): string {
+  const map: Record<string, string> = {
+    devotional_read: 'Read the devotional',
+    post_share: 'Shared with the sisterhood',
+    prayer_request: 'Shared a prayer request',
+    prayer_response: 'Prayed for a sister',
+    comment: 'Commented on a post',
+    check_in: 'Daily check-in',
+    bible_study_day: 'Completed a study day',
+  };
+  return map[action] ?? action;
+}
+
 // ─── Notification preferences ────────────────────────────────────────
 
 const NOTIFY_TYPES: Array<{ key: string; label: string; hint: string }> = [
@@ -882,6 +995,85 @@ function NotifyPrefs({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Quiet hours ─────────────────────────────────────────────────────
+
+function QuietHoursPicker({
+  enabled,
+  start,
+  end,
+  onEnabledChange,
+  onStartChange,
+  onEndChange,
+}: {
+  enabled: boolean;
+  start: number;
+  end: number;
+  onEnabledChange: (v: boolean) => void;
+  onStartChange: (v: number) => void;
+  onEndChange: (v: number) => void;
+}) {
+  const hours = Array.from({ length: 24 }, (_, h) => h);
+  const fmt = (h: number) => {
+    const hh = h.toString().padStart(2, '0');
+    return `${hh}:00`;
+  };
+  return (
+    <div>
+      <label className="flex items-start gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onEnabledChange(e.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="font-semibold">Quiet hours</span>
+          <span className="block text-xs text-app-muted">
+            Don't ping my phone overnight. The bell still records everything; you just won't be
+            woken.
+          </span>
+        </span>
+      </label>
+      {enabled && (
+        <div className="mt-3 flex items-center gap-3 pl-7">
+          <label className="text-xs">
+            <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">
+              From
+            </span>
+            <select
+              value={start}
+              onChange={(e) => onStartChange(Number(e.target.value))}
+              className="mt-1 rounded-xl border border-app bg-surface px-2 py-1.5 text-sm tabular-nums"
+            >
+              {hours.map((h) => (
+                <option key={h} value={h}>
+                  {fmt(h)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="block text-[10px] font-semibold uppercase tracking-wide text-app-muted">
+              Until
+            </span>
+            <select
+              value={end}
+              onChange={(e) => onEndChange(Number(e.target.value))}
+              className="mt-1 rounded-xl border border-app bg-surface px-2 py-1.5 text-sm tabular-nums"
+            >
+              {hours.map((h) => (
+                <option key={h} value={h}>
+                  {fmt(h)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
     </div>
   );
 }

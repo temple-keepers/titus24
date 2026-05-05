@@ -49,7 +49,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null);
       return;
     }
-    setProfile((data as Profile | null) ?? null);
+    const p = (data as Profile | null) ?? null;
+    setProfile(p);
+
+    // First-load timezone capture. We need this server-side for quiet
+    // hours; auto-detect from the browser and stash on the profile if
+    // we don't already have one. Fire-and-forget — don't block render.
+    if (p && !p.timezone && typeof Intl !== 'undefined') {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (tz) {
+          void supabase.from('profiles').update({ timezone: tz }).eq('id', userId);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {
